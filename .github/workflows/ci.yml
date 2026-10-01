@@ -1,0 +1,26 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          # Misma versión que usa el equipo en local (ver README).
+          python-version: "3.14"
+      - run: pip install -r requirements.txt
+      - run: pytest
+
+  # Bonificación (+0.3): análisis de vulnerabilidades de dependencias.
+  auditoria-dependencias:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: pip install pip-audit
+      - run: pip-audit -r requirements.txt
