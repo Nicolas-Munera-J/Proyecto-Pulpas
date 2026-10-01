@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block titulo %}Productos{% endblock %}
+{% block contenido %}
+<div class="encabezado-seccion">
+    <h1>Catálogo de productos</h1>
+    {% if current_user.es_administrador() %}
+    <a href="{{ url_for('productos.crear') }}" class="boton-primario">+ Nuevo producto</a>
+    {% endif %}
+</div>
+
+<table class="tabla">
+    <thead>
+        <tr>
+            <th>Nombre</th>
+            <th>Presentación</th>
+            <th>Unidad</th>
+            <th>Precio</th>
+            <th>Disponible</th>
+            <th>Comprometido</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for p in productos %}
+        <tr class="{% if p.stock_bajo %}fila-alerta{% endif %}">
+            <td>{{ p.nombre }}</td>
+            <td>{{ p.presentacion }}</td>
+            <td>{{ p.unidad_medida }}</td>
+            <td>${{ "%.2f"|format(p.precio) }}</td>
+            <td>{{ p.existencia_disponible }}</td>
+            <td>{{ p.existencia_comprometida }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6">Aún no hay productos registrados.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

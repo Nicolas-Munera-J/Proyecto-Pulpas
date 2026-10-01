@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block titulo %}Pulpas de Fruta{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body>
+    {% if current_user.is_authenticated %}
+    <nav class="navbar">
+        <span class="marca">🍓 Pulpas de Fruta</span>
+        <a href="{{ url_for('main.dashboard') }}">Inicio</a>
+        <a href="{{ url_for('inventario.existencias') }}">Existencias</a>
+        <a href="{{ url_for('productos.listar') }}">Productos</a>
+        {% if current_user.es_administrador() %}
+            <a href="{{ url_for('inventario.registrar_entrada') }}">Registrar entrada</a>
+            <a href="{{ url_for('productos.crear') }}">Nuevo producto</a>
+        {% endif %}
+        <span class="espaciador"></span>
+        <span class="usuario">{{ current_user.nombre }} ({{ current_user.rol }})</span>
+        <a href="{{ url_for('auth.logout') }}">Salir</a>
+    </nav>
+    {% endif %}
+
+    <main class="contenido">
+        {% block contenido %}{% endblock %}
+    </main>
+
+    {% with mensajes = get_flashed_messages(with_categories=true) %}
+        {% if mensajes %}
+        <script>
+            const mensajesFlash = {{ mensajes | tojson }};
+            const iconoPorCategoria = {
+                "success": "success",
+                "error": "error",
+                "warning": "warning",
+                "info": "info"
+            };
+            mensajesFlash.forEach(function (item) {
+                const [categoria, texto] = item;
+                Swal.fire({
+                    icon: iconoPorCategoria[categoria] || "info",
+                    text: texto,
+                    confirmButtonColor: "#e8590c"
+                });
+            });
+        </script>
+        {% endif %}
+    {% endwith %}
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

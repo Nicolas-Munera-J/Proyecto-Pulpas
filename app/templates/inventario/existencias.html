@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block titulo %}Existencias{% endblock %}
+{% block contenido %}
+<h1>Existencias actuales</h1>
+<table class="tabla">
+    <thead>
+        <tr>
+            <th>Producto</th>
+            <th>Disponible</th>
+            <th>Comprometido</th>
+            <th>Total físico</th>
+            <th>Umbral mínimo</th>
+            <th>Estado</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for p in productos %}
+        <tr class="{% if p.stock_bajo %}fila-alerta{% endif %}">
+            <td>{{ p.nombre }} ({{ p.presentacion }})</td>
+            <td>{{ p.existencia_disponible }}</td>
+            <td>{{ p.existencia_comprometida }}</td>
+            <td>{{ p.existencia_total }}</td>
+            <td>{{ p.umbral_minimo }}</td>
+            <td>
+                {% if p.stock_bajo %}
+                    <span class="etiqueta-alerta">Stock bajo</span>
+                {% else %}
+                    <span class="etiqueta-ok">OK</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6">No hay productos registrados.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

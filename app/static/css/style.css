@@ -1,0 +1,77 @@
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: #fdf6ec;
+    color: #2b2b2b;
+}
+
+.navbar {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    background: #e8590c;
+    color: white;
+    padding: 14px 24px;
+}
+.navbar a { color: white; text-decoration: none; font-weight: 500; }
+.navbar a:hover { text-decoration: underline; }
+.navbar .marca { font-weight: 700; font-size: 1.1rem; }
+.navbar .espaciador { flex: 1; }
+.navbar .usuario { opacity: 0.9; font-size: 0.9rem; }
+
+.contenido { max-width: 960px; margin: 32px auto; padding: 0 20px; }
+
+.tarjeta-centrada {
+    max-width: 420px;
+    margin: 60px auto;
+    padding: 32px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+}
+.tarjeta-centrada h1 { margin-top: 0; color: #e8590c; }
+.subtitulo { color: #777; margin-bottom: 24px; }
+
+form label { display: block; margin-top: 14px; margin-bottom: 4px; font-weight: 600; font-size: 0.9rem; }
+form input, form select {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 1rem;
+}
+
+.boton-primario {
+    margin-top: 22px;
+    width: 100%;
+    padding: 12px;
+    background: #e8590c;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+.boton-primario:hover { background: #d14e08; }
+
+.encabezado-seccion { display: flex; justify-content: space-between; align-items: center; }
+.encabezado-seccion .boton-primario { width: auto; padding: 10px 18px; }
+
+.tabla { width: 100%; border-collapse: collapse; margin-top: 16px; background: white; }
+.tabla th, .tabla td { padding: 10px 12px; border-bottom: 1px solid #eee; text-align: left; }
+.tabla th { background: #f3ede2; }
+.fila-alerta { background: #fff3ea; }
+
+.etiqueta-alerta { color: #c92a2a; font-weight: 600; }
+.etiqueta-ok { color: #2b8a3e; font-weight: 600; }
+
+.resumen-tarjetas { display: flex; gap: 16px; margin: 20px 0; }
+.tarjeta { background: white; padding: 20px; border-radius: 10px; flex: 1; text-align: center; box-shadow: 0 1px 6px rgba(0,0,0,0.06); }
+.tarjeta.alerta { border: 2px solid #e8590c; }
+.tarjeta .numero { display: block; font-size: 2rem; font-weight: 700; color: #e8590c; }
+.tarjeta .etiqueta { color: #666; }
+
+.lista-alerta { background: #fff3ea; padding: 16px 32px; border-radius: 8px; }

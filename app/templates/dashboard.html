@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block titulo %}Inicio{% endblock %}
+{% block contenido %}
+<h1>Bienvenido, {{ current_user.nombre }}</h1>
+
+<div class="resumen-tarjetas">
+    <div class="tarjeta">
+        <span class="numero">{{ productos | length }}</span>
+        <span class="etiqueta">Productos activos</span>
+    </div>
+    <div class="tarjeta {% if productos_stock_bajo %}alerta{% endif %}">
+        <span class="numero">{{ productos_stock_bajo | length }}</span>
+        <span class="etiqueta">Con existencia baja</span>
+    </div>
+</div>
+
+{% if productos_stock_bajo %}
+<h2>Productos con existencia baja</h2>
+<ul class="lista-alerta">
+    {% for p in productos_stock_bajo %}
+    <li>{{ p.nombre }} ({{ p.presentacion }}) — disponible: {{ p.existencia_disponible }}, umbral: {{ p.umbral_minimo }}</li>
+    {% endfor %}
+</ul>
+{% endif %}
+
+<p>
+    <a href="{{ url_for('inventario.existencias') }}">Ver todas las existencias →</a>
+</p>
+{% endblock %}
