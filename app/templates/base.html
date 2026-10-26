@@ -12,6 +12,8 @@
     <nav class="navbar">
         <span class="marca">🍓 Pulpas de Fruta</span>
         <a href="{{ url_for('main.dashboard') }}">Inicio</a>
+        <a href="{{ url_for('pedidos.hoy') }}">Pedidos de hoy</a>
+        <a href="{{ url_for('pedidos.nuevo') }}">Nuevo pedido</a>
         <a href="{{ url_for('inventario.existencias') }}">Existencias</a>
         <a href="{{ url_for('productos.listar') }}">Productos</a>
         {% if current_user.es_administrador() %}

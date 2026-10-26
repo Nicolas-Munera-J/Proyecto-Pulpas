@@ -5,6 +5,12 @@
 
 <div class="resumen-tarjetas">
     <div class="tarjeta">
+        <a href="{{ url_for('pedidos.hoy') }}" class="enlace-tarjeta">
+            <span class="numero">{{ pedidos_hoy | length }}</span>
+            <span class="etiqueta">Pedidos para hoy</span>
+        </a>
+    </div>
+    <div class="tarjeta">
         <span class="numero">{{ productos | length }}</span>
         <span class="etiqueta">Productos activos</span>
     </div>

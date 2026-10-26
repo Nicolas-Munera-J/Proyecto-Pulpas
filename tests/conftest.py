@@ -22,6 +22,9 @@ PASSWORD_GESTOR = "clave-gestor-prueba"
 NOMBRE_PRODUCTO = "Pulpa de Mora"
 EXISTENCIA_INICIAL = 10
 
+NOMBRE_PRODUCTO_2 = "Pulpa de Maracuyá"
+EXISTENCIA_INICIAL_2 = 8
+
 
 class ConfigPruebas:
     TESTING = True
@@ -53,7 +56,16 @@ def app():
             umbral_minimo=5,
         )
 
-        db.session.add_all([admin, gestor, producto])
+        producto_2 = Producto(
+            nombre=NOMBRE_PRODUCTO_2,
+            presentacion="Bolsa 500g",
+            unidad_medida="unidad",
+            precio=9000,
+            existencia_disponible=EXISTENCIA_INICIAL_2,
+            umbral_minimo=5,
+        )
+
+        db.session.add_all([admin, gestor, producto, producto_2])
         db.session.commit()
 
     yield app

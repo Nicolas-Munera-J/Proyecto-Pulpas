@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block titulo %}Nuevo pedido{% endblock %}
+{% block contenido %}
+<div class="tarjeta-pedido">
+    <h1>Registrar pedido</h1>
+    <form id="formPedido" method="POST">
+        <input type="hidden" name="confirmar_duplicado" id="confirmar_duplicado" value="">
+
+        <label for="cliente_nombre">Cliente</label>
+        <input type="text" id="cliente_nombre" name="cliente_nombre" maxlength="120" required
+               value="{{ valores.cliente_nombre }}">
+
+        <label for="cliente_contacto">Contacto (opcional)</label>
+        <input type="text" id="cliente_contacto" name="cliente_contacto" maxlength="80"
+               placeholder="Teléfono o dirección de entrega" value="{{ valores.cliente_contacto }}">
+
+        <div class="fila-doble">
+            <div>
+                <label for="canal">Canal</label>
+                <select id="canal" name="canal">
+                    {% for c in canales %}
+                    <option value="{{ c }}" {% if c == valores.canal %}selected{% endif %}>{{ c | capitalize }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="fecha_entrega">Fecha de entrega</label>
+                <input type="date" id="fecha_entrega" name="fecha_entrega" min="{{ hoy }}" required
+                       value="{{ valores.fecha_entrega }}">
+            </div>
+        </div>
+
+        <h2>Productos</h2>
+        <div id="lineas"></div>
+        <button type="button" id="agregarLinea" class="boton-secundario">+ Agregar producto</button>
+
+        <button type="submit" class="boton-primario">Registrar pedido</button>
+    </form>
+</div>
+
+<template id="plantillaLinea">
+    <div class="linea-pedido">
+        <select name="producto_id" required>
+            <option value="" disabled selected>Selecciona un producto</option>
+            {% for p in productos %}
+            <option value="{{ p.id }}">{{ p.nombre }} ({{ p.presentacion }}) — disponible: {{ p.existencia_disponible }}</option>
+            {% endfor %}
+        </select>
+        <input type="number" name="cantidad" min="1" placeholder="Cant." required>
+        <button type="button" class="quitar-linea" title="Quitar">✕</button>
+    </div>
+</template>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const contenedor = document.getElementById("lineas");
+    const plantilla = document.getElementById("plantillaLinea");
+    const formulario = document.getElementById("formPedido");
+
+    function agregarLinea(datos) {
+        const linea = plantilla.content.firstElementChild.cloneNode(true);
+        if (datos) {
+            if (datos.producto_id) linea.querySelector("select").value = datos.producto_id;
+            linea.querySelector("input").value = datos.cantidad || "";
+        }
+        linea.querySelector(".quitar-linea").addEventListener("click", function () {
+            if (contenedor.children.length > 1) linea.remove();
+        });
+        contenedor.appendChild(linea);
+    }
+
+    {{ valores.lineas | tojson }}.forEach(agregarLinea);
+    document.getElementById("agregarLinea").addEventListener("click", function () { agregarLinea(); });
+
+    {% if duplicado %}
+    // HU09: advertencia, no bloqueo. El gestor decide si de verdad es otro pedido.
+    // Se usa "text" (no "html") porque el nombre del cliente lo escribe una persona.
+    const duplicado = {{ duplicado | tojson }};
+    Swal.fire({
+        icon: "warning",
+        title: "Posible pedido duplicado",
+        text: "Hoy a las " + duplicado.registrado + " ya se registró un pedido de " +
+              duplicado.cliente + " con estos productos (" + duplicado.productos.join(", ") +
+              "). ¿Es un pedido distinto?",
+        showCancelButton: true,
+        confirmButtonText: "Sí, registrar de todos modos",
+        cancelButtonText: "No, revisar",
+        confirmButtonColor: "#e8590c"
+    }).then(function (resultado) {
+        if (resultado.isConfirmed) {
+            document.getElementById("confirmar_duplicado").value = "1";
+            formulario.submit();
+        }
+    });
+    {% endif %}
+</script>
+{% endblock %}

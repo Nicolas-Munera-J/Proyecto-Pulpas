@@ -8,13 +8,19 @@ Sistema web para digitalizar la gestión de pedidos, inventario y ventas de un n
 
 ## Estado del proyecto
 
-Sprint 1 completo: base del sistema, usuarios e inventario.
+Sprint 1 completo (base del sistema, usuarios e inventario) y Sprint 2 completo (registro y consulta de pedidos).
 
 - **HU20** – Inicio de sesión
 - **HU21** – Cierre de sesión
 - **HU13** – Registro de productos (catálogo)
 - **HU14** – Consulta de existencias actuales
 - **HU08** – Registro de entradas de inventario
+
+**Sprint 2**
+
+- **HU02** – Registro de pedido con verificación inmediata de inventario (`/pedidos/nuevo`)
+- **HU09** – Alerta de posible pedido duplicado (misma pantalla)
+- **HU01** – Consulta de pedidos del día (`/pedidos/hoy`)
 
 **Historia del taller de integración continua: HU08.** El administrador registra una entrada de inventario (producto, cantidad, observación) y la existencia disponible aumenta. Ruta: `/inventario/entradas` · lógica: `app/inventario/servicios.py` · datos: tablas `productos` y `movimientos_inventario`.
 
@@ -48,7 +54,9 @@ python run.py                   # servidor en http://127.0.0.1:5000
 | Gestor de pedidos | gestor@pulpas.com | gestor123 |
 
 - El **Administrador** puede registrar productos y entradas de inventario (HU13, HU08).
-- El **Gestor de pedidos** puede consultar existencias, pero recibe un error 403 si intenta registrar entradas.
+- El **Gestor de pedidos** puede consultar existencias, registrar pedidos y ver los pedidos del día, pero recibe un error 403 si intenta registrar entradas.
+
+Si ya tenías una base `pulpas.db` del Sprint 1, vuelve a ejecutar `python seed.py`: crea las tablas nuevas (`pedidos`, `detalles_pedido`) sin tocar los datos existentes.
 
 Para un despliegue real, la clave de sesiones se define con la variable de entorno `SECRET_KEY` y las contraseñas de los usuarios de demostración se cambian. Nunca se suben claves reales, tokens ni archivos `.env` al repositorio (ver `.gitignore`).
 
@@ -71,6 +79,19 @@ Las pruebas usan una base de datos SQLite en memoria; no tocan `pulpas.db`. Cubr
 | `test_gestor_de_pedidos_no_puede_registrar_entradas` | El servidor responde 403 al gestor (autorización por rol) |
 | `test_sin_sesion_se_redirige_al_login` | Sin sesión se redirige a `/login` |
 
+**Pruebas del Sprint 2** (`tests/test_pedidos.py`):
+
+| Historia | Qué verifican |
+|---|---|
+| HU02 | Pedido con inventario suficiente queda confirmado y compromete existencias (10 → 6 disponibles, 4 comprometidas) |
+| HU02 | Sin inventario suficiente no se registra nada y no hay estado de espera |
+| HU02 | Pedido con varios productos es todo-o-nada; líneas repetidas del mismo producto se suman |
+| HU02 | Cantidades no positivas, campos obligatorios, fecha pasada y producto inactivo/inexistente se rechazan en el servidor |
+| HU02 | De punta a punta por HTTP: registro correcto, error de inventario y cantidad no numérica |
+| HU09 | Mismo cliente + mismos productos dentro de la ventana se marca como duplicado y no toca el inventario |
+| HU09 | Distinto cliente, productos, fuera de ventana o pedido cancelado no es duplicado; si el gestor confirma, se registra |
+| HU01 | Solo se listan pedidos confirmados con entrega hoy (no mañana, cancelados ni despachados); vista y mensaje de lista vacía |
+
 ## Pipeline de integración continua
 
 El archivo `.github/workflows/ci.yml` se ejecuta en cada `push` y `pull request`. Tiene dos trabajos:
@@ -92,6 +113,8 @@ Estado actual: ver la pestaña **Actions** del repositorio o la insignia de arri
 │   ├── auth/                  # HU20 / HU21
 │   ├── productos/             # HU13
 │   ├── inventario/            # HU08 / HU14 (servicios.py = lógica de negocio)
+│   ├── pedidos/               # HU02 / HU09 / HU01 (servicios.py = lógica de negocio, dtos.py)
+│   ├── tiempo.py              # "hoy" en hora de Colombia (America/Bogota)
 │   ├── main/                  # dashboard
 │   ├── templates/
 │   └── static/css/
@@ -112,6 +135,14 @@ Estado actual: ver la pestaña **Actions** del repositorio o la insignia de arri
 - Cada ruta protegida valida el rol **en el servidor** con `@requiere_administrador`, no solo ocultando botones.
 - El acceso a datos se hace con SQLAlchemy ORM, sin concatenar SQL a mano.
 
+## Decisiones del Sprint 2
+
+- **No existe estado de espera:** si no hay inventario, el pedido no se registra; si lo hay, queda `confirmado` y las unidades pasan de disponibles a comprometidas. El registro es todo-o-nada y el UPDATE de inventario es condicional para que dos pedidos simultáneos no comprometan la misma unidad.
+- **Heurística de duplicado (HU09), pendiente de validar con el cliente:** mismo cliente (sin distinguir mayúsculas ni espacios) + mismo conjunto de productos + registrado hace menos de `VENTANA_DUPLICADO_MINUTOS` (30) + no cancelado. Las cantidades no se comparan. Es una advertencia, no un bloqueo: el gestor puede confirmar que es otro pedido.
+- **"Hoy" en hora de Colombia:** el servidor y el CI corren en UTC; usar `date.today()` haría que después de las 7 p. m. los pedidos del día aparecieran vacíos.
+- **Datos del cliente mínimos** (nombre y contacto opcional) por la Ley 1581 de 2012; no hay tabla de clientes.
+- `precio_unitario` y `fecha_despacho` se guardan desde ya para HU10 y HU05, así no hay que alterar tablas después.
+
 ## Trabajo colaborativo
 
 Una rama por historia (`feature/hu08-entradas-inventario`), integración a `main` mediante pull request revisado y aprobado por otro integrante, y pipeline en verde antes de fusionar.
@@ -122,5 +153,5 @@ Se utilizó Claude (Anthropic) como herramienta de apoyo durante el proyecto: es
 
 ## Pendiente para próximos sprints
 
-- Sprint 2: registro y consulta de pedidos (HU01, HU02, HU09).
-- Definir la heurística de "proximidad horaria" antes de implementar la detección de pedidos duplicados (HU09).
+- Sprint 3: edición, despacho, cancelación e inventario comprometido (HU03, HU04, HU05, HU06).
+- Validar con el cliente la heurística de duplicados de HU09 (ventana de 30 minutos).

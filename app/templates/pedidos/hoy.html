@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block titulo %}Pedidos de hoy{% endblock %}
+{% block contenido %}
+<div class="encabezado-seccion">
+    <h1>Pedidos de hoy <small class="fecha-titulo">{{ fecha.strftime("%d/%m/%Y") }}</small></h1>
+    <a href="{{ url_for('pedidos.nuevo') }}" class="boton-primario">+ Nuevo pedido</a>
+</div>
+
+<table class="tabla">
+    <thead>
+        <tr>
+            <th>#</th>
+            <th>Cliente</th>
+            <th>Productos</th>
+            <th>Canal</th>
+            <th>Registrado</th>
+            <th>Estado</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for pedido in pedidos %}
+        <tr>
+            <td>{{ pedido.id }}</td>
+            <td>
+                {{ pedido.cliente_nombre }}
+                {% if pedido.cliente_contacto %}<br><small>{{ pedido.cliente_contacto }}</small>{% endif %}
+            </td>
+            <td>
+                <ul class="lista-productos">
+                    {% for d in pedido.detalles %}
+                    <li>{{ d.cantidad }} × {{ d.producto.nombre }} ({{ d.producto.presentacion }})</li>
+                    {% endfor %}
+                </ul>
+            </td>
+            <td>{{ pedido.canal | capitalize }}</td>
+            <td>{{ (pedido.fecha_creacion | hora_local).strftime("%H:%M") }}</td>
+            <td><span class="estado estado-{{ pedido.estado }}">{{ pedido.estado | capitalize }}</span></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6">No hay pedidos confirmados para entregar hoy.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

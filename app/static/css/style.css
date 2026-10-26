@@ -75,3 +75,49 @@ form input, form select {
 .tarjeta .etiqueta { color: #666; }
 
 .lista-alerta { background: #fff3ea; padding: 16px 32px; border-radius: 8px; }
+
+/* ---- Sprint 2: pedidos ---- */
+.tarjeta-pedido {
+    max-width: 640px;
+    margin: 32px auto;
+    padding: 32px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+}
+.tarjeta-pedido h1 { margin-top: 0; color: #e8590c; }
+.tarjeta-pedido h2 { margin: 24px 0 8px; font-size: 1.1rem; }
+.fila-doble { display: flex; gap: 16px; }
+.fila-doble > div { flex: 1; }
+
+.linea-pedido { display: flex; gap: 8px; margin-bottom: 8px; }
+.linea-pedido select { flex: 3; }
+.linea-pedido input { flex: 1; min-width: 70px; }
+.quitar-linea { border: none; background: #eee; border-radius: 6px; padding: 0 12px; cursor: pointer; }
+.quitar-linea:hover { background: #fcc; }
+
+.boton-secundario {
+    background: white;
+    color: #e8590c;
+    border: 1px solid #e8590c;
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.boton-secundario:hover { background: #fff3ea; }
+
+.lista-productos { margin: 0; padding-left: 18px; }
+.fecha-titulo { font-size: 1rem; color: #777; font-weight: 400; margin-left: 8px; }
+.estado { padding: 2px 10px; border-radius: 12px; font-size: 0.85rem; font-weight: 600; }
+.estado-confirmado { background: #d3f9d8; color: #2b8a3e; }
+.estado-despachado { background: #d0ebff; color: #1864ab; }
+.estado-cancelado { background: #ffe3e3; color: #c92a2a; }
+.enlace-tarjeta { text-decoration: none; color: inherit; display: block; }
+
+@media (max-width: 600px) {
+    .navbar { flex-wrap: wrap; gap: 10px 16px; }
+    .fila-doble { flex-direction: column; gap: 0; }
+    .resumen-tarjetas { flex-direction: column; }
+    .tabla { display: block; overflow-x: auto; }
+}
