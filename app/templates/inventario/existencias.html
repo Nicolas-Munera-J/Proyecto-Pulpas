@@ -1,7 +1,14 @@
 {% extends "base.html" %}
 {% block titulo %}Existencias{% endblock %}
 {% block contenido %}
-<h1>Existencias actuales</h1>
+<div class="encabezado-seccion">
+    <h1>Existencias actuales</h1>
+    {% if solo_bajo %}
+    <a href="{{ url_for('inventario.existencias') }}" class="boton-secundario">Ver todas</a>
+    {% else %}
+    <a href="{{ url_for('inventario.existencias', solo_bajo=1) }}" class="boton-secundario">Ver solo stock bajo</a>
+    {% endif %}
+</div>
 <table class="tabla">
     <thead>
         <tr>
@@ -30,7 +37,7 @@
             </td>
         </tr>
         {% else %}
-        <tr><td colspan="6">No hay productos registrados.</td></tr>
+        <tr><td colspan="6">{% if solo_bajo %}Ningún producto está en stock bajo.{% else %}No hay productos registrados.{% endif %}</td></tr>
         {% endfor %}
     </tbody>
 </table>

@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block titulo %}Registrar merma{% endblock %}
+{% block contenido %}
+<div class="tarjeta-centrada tarjeta-ancha">
+    <h1>Registrar merma</h1>
+    <p class="ayuda">Descuenta de la existencia <strong>disponible</strong> las unidades perdidas por daño o vencimiento. Las unidades comprometidas por pedidos confirmados no se pueden descartar.</p>
+    <form id="formMerma" method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label for="producto_id">Producto</label>
+        <select id="producto_id" name="producto_id" required>
+            <option value="" disabled selected>Selecciona un producto</option>
+            {% for p in productos %}
+            <option value="{{ p.id }}">{{ p.nombre }} ({{ p.presentacion }}) — disponible: {{ p.existencia_disponible }}</option>
+            {% endfor %}
+        </select>
+
+        <label for="cantidad">Cantidad perdida</label>
+        <input type="number" id="cantidad" name="cantidad" min="1" required>
+
+        <label for="motivo">Motivo</label>
+        <select id="motivo" name="motivo" required>
+            <option value="" disabled selected>Selecciona el motivo</option>
+            {% for clave, etiqueta in motivos.items() %}
+            <option value="{{ clave }}">{{ etiqueta }}</option>
+            {% endfor %}
+        </select>
+
+        <label for="observacion">Observación (opcional)</label>
+        <input type="text" id="observacion" name="observacion" maxlength="255" placeholder="Ej. Bolsas rotas en el transporte">
+
+        <button type="submit" class="boton-primario">Registrar merma</button>
+    </form>
+</div>
+
+<h2>Mermas recientes</h2>
+<table class="tabla">
+    <thead>
+        <tr><th>Fecha</th><th>Producto</th><th class="celda-numero">Cantidad</th><th>Motivo</th><th>Observación</th><th>Registró</th></tr>
+    </thead>
+    <tbody>
+        {% for m in mermas %}
+        <tr>
+            <td>{{ (m.fecha | hora_local).strftime("%d/%m/%Y %H:%M") }}</td>
+            <td>{{ m.producto.nombre }} ({{ m.producto.presentacion }})</td>
+            <td class="celda-numero">{{ m.cantidad }}</td>
+            <td>{{ motivos.get(m.motivo, m.motivo or "—") }}</td>
+            <td>{{ m.observacion or "—" }}</td>
+            <td>{{ m.usuario.nombre }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6">Todavía no se han registrado mermas.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.getElementById("formMerma").addEventListener("submit", function (evento) {
+        evento.preventDefault();
+        const formulario = evento.target;
+        const producto = formulario.producto_id.options[formulario.producto_id.selectedIndex].text;
+        const motivo = formulario.motivo.options[formulario.motivo.selectedIndex].text;
+        // "text" y no "html": el contenido sale de campos del formulario.
+        Swal.fire({
+            icon: "warning",
+            title: "¿Registrar la merma?",
+            text: "Se descontarán " + formulario.cantidad.value + " unidades de " + producto + " por " + motivo.toLowerCase() + ". No se puede deshacer.",
+            showCancelButton: true,
+            confirmButtonText: "Sí, registrar",
+            cancelButtonText: "Cancelar",
+            confirmButtonColor: "#e8590c"
+        }).then(function (resultado) {
+            if (resultado.isConfirmed) formulario.submit();
+        });
+    });
+</script>
+{% endblock %}

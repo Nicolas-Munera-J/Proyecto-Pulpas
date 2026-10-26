@@ -37,7 +37,7 @@ from tests.conftest import (
     PASSWORD_ADMIN,
 )
 from tests.test_ciclo_pedido import _crear
-from tests.test_pedidos import _dto, _existencias, _formulario, _ids, _iniciar_sesion_gestor
+from tests.test_pedidos import _dto, _existencias, _ids, _iniciar_sesion_gestor
 
 
 # --------------------------------------------------------------------------

@@ -11,14 +11,17 @@ from app.errores import (
     TransicionDePedidoInvalidaException,
 )
 from app.extensions import db
+from app.inventario.servicios import describir_stock_bajo
 from app.models import (
     CANAL_WHATSAPP,
     CANALES,
     ESTADO_CONFIRMADO,
+    ESTADOS_PEDIDO,
     FORMAS_PAGO,
     Pedido,
     Producto,
 )
+from app.pedidos.consultas import FiltrosHistorial, buscar_pedidos
 from app.pedidos.dtos import ItemPedidoDTO, PedidoDTO
 from app.pedidos.servicios import (
     cancelar_pedido,
@@ -100,6 +103,16 @@ def _valores_desde_pedido(pedido: Pedido) -> dict:
     }
 
 
+def _con_alerta_de_stock(mensaje: str, pedido: Pedido):
+    """HU15 - Si al tomar o editar el pedido algún producto quedó en stock
+    bajo, la alerta va en el MISMO aviso (varios avisos seguidos se pisarían
+    entre sí en pantalla)."""
+    alertas = describir_stock_bajo({d.producto_id for d in pedido.detalles})
+    if not alertas:
+        return mensaje, "success"
+    return mensaje + " Atención, existencia baja: " + "; ".join(alertas) + ".", "warning"
+
+
 def _mostrar_formulario(valores: dict, duplicado=None, pedido=None):
     """Formulario compartido por "nuevo pedido" (pedido=None) y "editar"."""
     consulta = Producto.query
@@ -157,7 +170,10 @@ def nuevo():
         flash(str(error), "error")
         return _mostrar_formulario(valores)
 
-    flash(f"Pedido #{pedido.id} de {pedido.cliente_nombre} registrado y confirmado.", "success")
+    mensaje, categoria = _con_alerta_de_stock(
+        f"Pedido #{pedido.id} de {pedido.cliente_nombre} registrado y confirmado.", pedido
+    )
+    flash(mensaje, categoria)
     return redirect(url_for("pedidos.nuevo"))
 
 
@@ -205,7 +221,8 @@ def editar(pedido_id):
         flash(str(error), "error")
         return _mostrar_formulario(valores, pedido=pedido)
 
-    flash(f"Pedido #{pedido_id} actualizado.", "success")
+    mensaje, categoria = _con_alerta_de_stock(f"Pedido #{pedido_id} actualizado.", pedido)
+    flash(mensaje, categoria)
     return _volver_a_pedidos(pedido)
 
 
@@ -240,4 +257,52 @@ def cancelar(pedido_id):
     """HU06 - Cancelación de un pedido (libera el inventario comprometido)."""
     return _ejecutar_accion(
         pedido_id, cancelar_pedido, "Pedido #{id} de {cliente} cancelado. Inventario liberado."
+    )
+
+
+@pedidos_bp.route("/pedidos/historial")
+@login_required
+def historial():
+    """HU07 - Búsqueda y consulta del historial de pedidos por fecha de
+    entrega, estado, canal o nombre del cliente."""
+    argumentos = request.args
+    fechas, parametros = {}, {}
+    for nombre in ("desde", "hasta"):
+        texto = argumentos.get(nombre, "").strip()
+        if not texto:
+            continue
+        try:
+            fechas[nombre] = date.fromisoformat(texto)
+            parametros[nombre] = texto
+        except ValueError:
+            flash(f"La fecha '{nombre}' no es válida y se ignoró.", "error")
+    for nombre in ("estado", "canal", "cliente"):
+        if argumentos.get(nombre, "").strip():
+            parametros[nombre] = argumentos[nombre].strip()
+
+    filtros = FiltrosHistorial(
+        desde=fechas.get("desde"),
+        hasta=fechas.get("hasta"),
+        estado=parametros.get("estado", ""),
+        canal=parametros.get("canal", ""),
+        cliente=parametros.get("cliente", ""),
+    )
+    try:
+        pagina = int(argumentos.get("pagina", "1"))
+    except ValueError:
+        pagina = 1
+
+    try:
+        resultado = buscar_pedidos(filtros, pagina)
+    except ErrorDeNegocio as error:
+        flash(str(error), "error")
+        resultado = None
+
+    return render_template(
+        "pedidos/historial.html",
+        filtros=filtros,
+        parametros=parametros,
+        resultado=resultado,
+        estados=ESTADOS_PEDIDO,
+        canales=CANALES,
     )

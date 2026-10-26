@@ -4,6 +4,7 @@
 <div class="tarjeta-centrada">
     <h1>Registrar entrada de inventario</h1>
     <form id="formEntrada" method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label for="producto_id">Producto</label>
         <select id="producto_id" name="producto_id" required>
             <option value="" disabled selected>Selecciona un producto</option>

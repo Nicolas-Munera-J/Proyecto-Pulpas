@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block titulo %}Historial de pedidos{% endblock %}
+{% block contenido %}
+<div class="encabezado-seccion">
+    <h1>Historial de pedidos</h1>
+    <a href="{{ url_for('pedidos.nuevo') }}" class="boton-primario">+ Nuevo pedido</a>
+</div>
+
+<form method="GET" class="formulario-periodo filtros-historial">
+    <div>
+        <label for="cliente">Cliente</label>
+        <input type="text" id="cliente" name="cliente" maxlength="120" placeholder="Buscar por nombre" value="{{ filtros.cliente }}">
+    </div>
+    <div>
+        <label for="desde">Entrega desde</label>
+        <input type="date" id="desde" name="desde" value="{{ filtros.desde.isoformat() if filtros.desde else '' }}">
+    </div>
+    <div>
+        <label for="hasta">Entrega hasta</label>
+        <input type="date" id="hasta" name="hasta" value="{{ filtros.hasta.isoformat() if filtros.hasta else '' }}">
+    </div>
+    <div>
+        <label for="estado">Estado</label>
+        <select id="estado" name="estado">
+            <option value="">Todos</option>
+            {% for e in estados %}<option value="{{ e }}" {% if e == filtros.estado %}selected{% endif %}>{{ e | capitalize }}</option>{% endfor %}
+        </select>
+    </div>
+    <div>
+        <label for="canal">Canal</label>
+        <select id="canal" name="canal">
+            <option value="">Todos</option>
+            {% for c in canales %}<option value="{{ c }}" {% if c == filtros.canal %}selected{% endif %}>{{ c | capitalize }}</option>{% endfor %}
+        </select>
+    </div>
+    <button type="submit" class="boton-primario">Buscar</button>
+    <a href="{{ url_for('pedidos.historial') }}">Limpiar</a>
+</form>
+
+{% if resultado is not none %}
+<p class="ayuda">{{ resultado.total }} pedido{{ '' if resultado.total == 1 else 's' }} encontrado{{ '' if resultado.total == 1 else 's' }}.</p>
+
+<table class="tabla">
+    <thead>
+        <tr>
+            <th>#</th><th>Cliente</th><th>Productos</th><th>Entrega</th><th>Canal</th>
+            <th>Estado</th><th class="celda-numero">Total</th><th>Pago</th><th></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for pedido in resultado.pedidos %}
+        <tr>
+            <td>{{ pedido.id }}</td>
+            <td>{{ pedido.cliente_nombre }}{% if pedido.cliente_contacto %}<br><small>{{ pedido.cliente_contacto }}</small>{% endif %}</td>
+            <td>
+                <ul class="lista-productos">
+                    {% for d in pedido.detalles %}<li>{{ d.cantidad }} × {{ d.producto.nombre }}</li>{% endfor %}
+                </ul>
+            </td>
+            <td>{{ pedido.fecha_entrega.strftime("%d/%m/%Y") }}</td>
+            <td>{{ pedido.canal | capitalize }}</td>
+            <td><span class="estado estado-{{ pedido.estado }}">{{ pedido.estado | capitalize }}</span></td>
+            <td class="celda-numero">{{ pedido.total | moneda }}</td>
+            <td>{{ (pedido.forma_pago or "—") | capitalize }}</td>
+            <td>
+                {% if pedido.estado == "confirmado" %}
+                <a href="{{ url_for('pedidos.editar', pedido_id=pedido.id) }}" class="boton-secundario">Editar</a>
+                {% endif %}
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9">No hay pedidos que coincidan con la búsqueda.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% if resultado.total_paginas > 1 %}
+<nav class="paginacion">
+    {% if resultado.pagina > 1 %}
+    <a href="{{ url_for('pedidos.historial', pagina=resultado.pagina - 1, **parametros) }}">← Anterior</a>
+    {% endif %}
+    <span>Página {{ resultado.pagina }} de {{ resultado.total_paginas }}</span>
+    {% if resultado.pagina < resultado.total_paginas %}
+    <a href="{{ url_for('pedidos.historial', pagina=resultado.pagina + 1, **parametros) }}">Siguiente →</a>
+    {% endif %}
+</nav>
+{% endif %}
+{% endif %}
+{% endblock %}

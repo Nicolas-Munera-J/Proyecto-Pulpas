@@ -37,7 +37,6 @@ from app.pedidos.servicios import (
 )
 from app.tiempo import ahora_utc, hoy_negocio
 from tests.conftest import (
-    EMAIL_ADMIN,
     EMAIL_GESTOR,
     EXISTENCIA_INICIAL,
     EXISTENCIA_INICIAL_2,

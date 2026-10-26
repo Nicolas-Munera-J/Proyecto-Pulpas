@@ -31,6 +31,7 @@ class ConfigPruebas:
     SECRET_KEY = "clave-solo-para-pruebas"
     SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    CSRF_ACTIVADO = False  # las pruebas de test_seguridad_csrf.py la activan
     BCRYPT_LOG_ROUNDS = 4  # hash rápido: solo para que las pruebas no tarden
 
 

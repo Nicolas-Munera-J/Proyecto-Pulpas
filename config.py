@@ -11,3 +11,4 @@ class Config:
         "DATABASE_URL", f"sqlite:///{os.path.join(BASE_DIR, 'pulpas.db')}"
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    CSRF_ACTIVADO = True  # protección CSRF de los formularios (app/seguridad.py)

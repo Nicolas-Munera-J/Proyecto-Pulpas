@@ -6,9 +6,10 @@ pulpas.db de un sprint anterior necesita este paso (lo ejecuta seed.py).
 """
 from sqlalchemy import inspect, text
 
-# (tabla, columna, tipo SQL) agregadas después del Sprint 1.
+# (tabla, columna, tipo SQL) agregadas después del Sprint 1 a tablas que ya existían.
 COLUMNAS_NUEVAS = [
     ("pedidos", "forma_pago", "VARCHAR(20)"),  # Sprint 4 - HU11
+    ("movimientos_inventario", "motivo", "VARCHAR(20)"),  # Sprint 5 - HU16
 ]
 
 

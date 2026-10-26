@@ -6,10 +6,12 @@ from app.extensions import db
 from app.models import (
     ESTADO_CONFIRMADO,
     DetallePedido,
+    MOTIVOS_MERMA,
     MovimientoInventario,
     Pedido,
     Producto,
     TIPO_ENTRADA,
+    TIPO_MERMA,
 )
 from app.errores import DatosInvalidosException, InventarioInsuficienteException
 
@@ -49,6 +51,97 @@ def listar_existencias():
     """HU14 - Muestra existencias disponibles y permite identificar
     existencias bajas (el cálculo de stock_bajo vive en el modelo Producto)."""
     return Producto.query.filter_by(activo=True).order_by(Producto.nombre).all()
+
+
+# --------------------------------------------------------------------------
+# HU15 - Alerta de existencias bajas
+# --------------------------------------------------------------------------
+def listar_stock_bajo() -> List[Producto]:
+    """HU15 - Productos activos cuya existencia disponible llegó al umbral
+    mínimo o está por debajo (Producto.stock_bajo)."""
+    return [p for p in listar_existencias() if p.stock_bajo]
+
+
+def describir_stock_bajo(producto_ids) -> List[str]:
+    """HU15 - Texto de alerta para los productos de `producto_ids` que están
+    en stock bajo. Se usa justo después de tomar un pedido o registrar una
+    merma, que son los momentos en que baja la existencia disponible."""
+    if not producto_ids:
+        return []
+    productos = (
+        Producto.query.filter(Producto.id.in_(list(producto_ids)), Producto.activo.is_(True))
+        .order_by(Producto.nombre)
+        .all()
+    )
+    return [
+        f"{p.nombre} ({p.presentacion}): quedan {p.existencia_disponible}, umbral {p.umbral_minimo}"
+        for p in productos
+        if p.stock_bajo
+    ]
+
+
+# --------------------------------------------------------------------------
+# HU16 - Mermas o pérdidas de inventario
+# --------------------------------------------------------------------------
+def registrar_merma(producto_id: int, cantidad: int, motivo: str, usuario_id: int,
+                    observacion: str = "") -> MovimientoInventario:
+    """HU16 - Registra una pérdida por daño o vencimiento y la descuenta de
+    la existencia DISPONIBLE.
+
+    Solo se pueden descartar unidades disponibles: las comprometidas ya
+    pertenecen a un pedido confirmado (si se perdieron, hay que editar o
+    cancelar ese pedido primero). El UPDATE es condicional para que dos mermas
+    simultáneas no dejen la existencia en negativo.
+    """
+    if motivo not in MOTIVOS_MERMA:
+        raise DatosInvalidosException("Selecciona el motivo de la merma: daño o vencimiento.")
+    if cantidad is None or cantidad <= 0:
+        raise DatosInvalidosException("La cantidad de la merma debe ser mayor que cero.")
+    observacion = (observacion or "").strip()
+    if len(observacion) > 255:
+        raise DatosInvalidosException("La observación no puede superar 255 caracteres.")
+
+    producto = db.session.get(Producto, producto_id)
+    if producto is None:
+        raise DatosInvalidosException("El producto indicado no existe.")
+
+    try:
+        resultado = db.session.execute(
+            update(Producto)
+            .where(Producto.id == producto_id, Producto.existencia_disponible >= cantidad)
+            .values(existencia_disponible=Producto.existencia_disponible - cantidad)
+        )
+        if resultado.rowcount == 0:
+            raise InventarioInsuficienteException(
+                f"No se puede registrar la merma: de {producto.nombre} ({producto.presentacion}) "
+                f"solo hay {producto.existencia_disponible} unidades disponibles. Las unidades "
+                "comprometidas por pedidos confirmados no se pueden descartar; edita o cancela "
+                "el pedido primero."
+            )
+        movimiento = MovimientoInventario(
+            producto_id=producto_id,
+            tipo=TIPO_MERMA,
+            cantidad=cantidad,
+            motivo=motivo,
+            observacion=observacion or None,
+            usuario_id=usuario_id,
+        )
+        db.session.add(movimiento)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+    return movimiento
+
+
+def listar_mermas(limite: int = 20) -> List[MovimientoInventario]:
+    """Las mermas más recientes, para mostrarlas junto al formulario."""
+    return (
+        MovimientoInventario.query.filter_by(tipo=TIPO_MERMA)
+        .order_by(MovimientoInventario.fecha.desc(), MovimientoInventario.id.desc())
+        .limit(limite)
+        .all()
+    )
 
 
 # --------------------------------------------------------------------------

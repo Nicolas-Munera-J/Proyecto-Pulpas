@@ -51,6 +51,7 @@
                       class="form-accion" data-titulo="¿Despachar el pedido #{{ pedido.id }}?"
                       data-texto="Total a cobrar a {{ pedido.cliente_nombre }}: {{ pedido.total | moneda }}. Una vez despachado ya no podrá editarse ni cancelarse."
                       data-boton="Sí, despachar" data-pago="1">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="forma_pago" value="">
                     <button type="submit" class="boton-primario">Despachar</button>
                 </form>
@@ -58,6 +59,7 @@
                       class="form-accion" data-titulo="¿Cancelar el pedido #{{ pedido.id }}?"
                       data-texto="Se liberarán las existencias comprometidas del pedido de {{ pedido.cliente_nombre }}."
                       data-boton="Sí, cancelar">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="boton-peligro">Cancelar</button>
                 </form>
             </td>

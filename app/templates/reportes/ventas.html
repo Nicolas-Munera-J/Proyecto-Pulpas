@@ -6,6 +6,7 @@
 {% include "reportes/_periodo.html" %}
 
 {% if resumen %}
+<p><a href="{{ url_for('reportes.exportar_ventas', desde=desde.isoformat(), hasta=hasta.isoformat()) }}" class="boton-secundario">⬇ Descargar CSV (Excel)</a></p>
 <div class="resumen-tarjetas">
     <div class="tarjeta">
         <span class="numero monto">{{ resumen.total_ventas | moneda }}</span>

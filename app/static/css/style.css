@@ -150,3 +150,13 @@ form input, form select {
 .barra-contenedor { background: #f1f1f1; border-radius: 4px; min-width: 120px; }
 .barra { background: #e8590c; height: 12px; border-radius: 4px; }
 .sin-datos { color: #777; padding: 16px 0; }
+
+/* ---- Sprint 5 ---- */
+.tarjeta-ancha { max-width: 560px; margin-top: 24px; margin-bottom: 32px; }
+.navbar { flex-wrap: wrap; row-gap: 8px; }
+.fila-inactiva { opacity: 0.6; }
+.form-rol { display: flex; gap: 6px; align-items: center; }
+.form-rol select { margin: 0; width: auto; }
+.filtros-historial { align-items: flex-end; }
+.filtros-historial select, .filtros-historial input { margin: 0; }
+.paginacion { display: flex; gap: 16px; align-items: center; justify-content: center; margin: 20px 0; }

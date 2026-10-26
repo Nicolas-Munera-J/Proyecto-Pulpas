@@ -33,7 +33,6 @@ from app.inventario.servicios import (
 from app.models import (
     FORMA_PAGO_EFECTIVO,
     ESTADO_CANCELADO,
-    ESTADO_CONFIRMADO,
     ESTADO_DESPACHADO,
     Pedido,
     Producto,

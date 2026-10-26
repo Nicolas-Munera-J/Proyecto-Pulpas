@@ -33,3 +33,8 @@ class PedidoPosiblementeDuplicadoException(ErrorDeNegocio):
 class TransicionDePedidoInvalidaException(ErrorDeNegocio):
     """HU03/HU05/HU06 - Se lanza al intentar editar, despachar o cancelar un
     pedido que ya no está confirmado (despachado o cancelado)."""
+
+
+class OperacionNoPermitidaException(ErrorDeNegocio):
+    """HU22 - Se lanza cuando una operación es válida en general pero no está
+    permitida en este caso (por ejemplo, desactivar al último administrador)."""

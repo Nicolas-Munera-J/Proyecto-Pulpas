@@ -4,6 +4,7 @@
 <div class="tarjeta-centrada">
     <h1>Nuevo producto</h1>
     <form method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label for="nombre">Nombre</label>
         <input type="text" id="nombre" name="nombre" required>
 
@@ -17,7 +18,7 @@
         <input type="number" id="precio" name="precio" step="0.01" min="0" value="0" required>
 
         <label for="umbral_minimo">Umbral mínimo (para alerta de stock bajo)</label>
-        <input type="number" id="umbral_minimo" name="umbral_minimo" min="0" value="0" required>
+        <input type="number" id="umbral_minimo" name="umbral_minimo" min="0" value="{{ umbral_predeterminado }}" required>
 
         <button type="submit" class="boton-primario">Guardar producto</button>
     </form>

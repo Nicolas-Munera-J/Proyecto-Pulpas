@@ -8,7 +8,7 @@ Sistema web para digitalizar la gestión de pedidos, inventario y ventas de un n
 
 ## Estado del proyecto
 
-Sprints 1 a 4 completos: base del sistema, usuarios e inventario (S1); registro y consulta de pedidos (S2); ciclo del pedido e inventario comprometido (S3); totales, formas de pago y reportes (S4).
+Sprints 1 a 5 completos: base del sistema, usuarios e inventario (S1); registro y consulta de pedidos (S2); ciclo del pedido e inventario comprometido (S3); totales, formas de pago y reportes (S4); historial, existencias bajas, mermas, exportación y gestión de usuarios (S5).
 
 - **HU20** – Inicio de sesión
 - **HU21** – Cierre de sesión
@@ -35,6 +35,15 @@ Sprints 1 a 4 completos: base del sistema, usuarios e inventario (S1); registro 
 - **HU11** – Registro de la forma de pago al despachar
 - **HU17** – Reporte de ventas por periodo (`/reportes/ventas`, solo administrador)
 - **HU18** – Productos más vendidos (`/reportes/productos-mas-vendidos`, solo administrador)
+
+**Sprint 5**
+
+- **HU07** – Búsqueda y consulta del historial de pedidos (`/pedidos/historial`)
+- **HU15** – Alerta de existencias bajas (aviso al tomar pedidos y mermas, filtro en existencias)
+- **HU16** – Registro de mermas por daño o vencimiento (`/inventario/mermas`, solo administrador)
+- **HU19** – Exportar el reporte de ventas a CSV (`/reportes/ventas/exportar`, solo administrador)
+- **HU22** – Gestión de usuarios: crear, asignar rol, desactivar y reactivar (`/usuarios`, solo administrador)
+- **Protección CSRF** en todos los formularios que modifican datos (`app/seguridad.py`). No es una historia del backlog: se agregó porque HU22 la volvía crítica.
 
 **Historia del taller de integración continua: HU08.** El administrador registra una entrada de inventario (producto, cantidad, observación) y la existencia disponible aumenta. Ruta: `/inventario/entradas` · lógica: `app/inventario/servicios.py` · datos: tablas `productos` y `movimientos_inventario`.
 
@@ -70,7 +79,7 @@ python run.py                   # servidor en http://127.0.0.1:5000
 - El **Administrador** puede registrar productos y entradas de inventario (HU13, HU08).
 - El **Gestor de pedidos** puede consultar existencias, registrar pedidos y ver los pedidos del día, pero recibe un error 403 si intenta registrar entradas.
 
-**Si ya tenías una base `pulpas.db` de un sprint anterior, vuelve a ejecutar `python seed.py`.** Crea las tablas nuevas y, desde el Sprint 4, también agrega la columna `pedidos.forma_pago` a la tabla existente (`create_all()` por sí solo no agrega columnas). No borra datos y se puede ejecutar varias veces. Los pedidos despachados antes del Sprint 4 quedan con forma de pago "sin registrar" en los reportes.
+**Si ya tenías una base `pulpas.db` de un sprint anterior, vuelve a ejecutar `python seed.py`.** Crea las tablas nuevas y agrega las columnas nuevas a las tablas existentes: `pedidos.forma_pago` (Sprint 4) y `movimientos_inventario.motivo` (Sprint 5); `create_all()` por sí solo no agrega columnas. No borra datos y se puede ejecutar varias veces. Los pedidos despachados antes del Sprint 4 quedan con forma de pago "sin registrar" en los reportes.
 
 Para un despliegue real, la clave de sesiones se define con la variable de entorno `SECRET_KEY` y las contraseñas de los usuarios de demostración se cambian. Nunca se suben claves reales, tokens ni archivos `.env` al repositorio (ver `.gitignore`).
 
@@ -129,6 +138,28 @@ Las pruebas usan una base de datos SQLite en memoria; no tocan `pulpas.db`. Cubr
 | Seguridad | Los reportes devuelven 403 al gestor de pedidos y redirigen al login sin sesión (el rol se valida en el servidor) |
 | Migración | Agrega `forma_pago` a una base del Sprint 3 sin perder datos y es idempotente |
 
+**Pruebas del Sprint 5**
+
+| Archivo | Historia | Qué verifican |
+|---|---|---|
+| `test_historial_pedidos.py` | HU07 | Filtros por estado, canal, rango de fechas (inclusive) y nombre sin distinguir mayúsculas; los comodines `%` y `_` se buscan como texto; filtros combinados e inválidos; paginación con páginas fuera de rango; vista HTTP |
+| `test_stock_mermas.py` | HU15 | Stock bajo en el umbral exacto; solo productos activos; aviso en el mismo mensaje al tomar o editar un pedido; filtro "solo stock bajo"; umbral predeterminado en productos nuevos |
+| `test_stock_mermas.py` | HU16 | La merma descuenta lo disponible y registra motivo y usuario; no se pueden descartar unidades comprometidas ni más de lo disponible; no rompe la coherencia del inventario; solo administrador; migración de `motivo` |
+| `test_exportar_ventas.py` | HU19 | Resumen, desglose por forma de pago y detalle; periodo en hora de Colombia; tildes y ñ; neutraliza fórmulas de Excel en nombres de clientes (`=`, `+`, `-`, `@`); descarga con cabeceras correctas; solo administrador |
+| `test_usuarios.py` | HU22 | Alta con hash de contraseña y correo normalizado; validaciones; correo único; el usuario creado entra y su rol limita el acceso; cambio de rol; desactivar cierra la sesión abierta y conserva el historial; nunca queda sin administrador activo; nadie se desactiva a sí mismo; el gestor no puede darse permisos |
+| `test_seed_demo.py` | Demo | Los datos de demostración son coherentes con el inventario; los reportes tienen historia; los ejemplos del guion (pedido nuevo, duplicado, sin inventario, alerta de stock bajo, editar, despachar, cancelar, merma) producen los resultados esperados |
+| `test_seguridad_csrf.py` | CSRF | POST sin token o con token falso → 400 y sin cambios; con token (campo o cabecera) funciona; el token es distinto por sesión; **todos** los formularios POST de la aplicación llevan el token (prueba de seguridad contra olvidos futuros) |
+
+## Datos de demostración
+
+Para presentar el sistema con historia (y no con la base vacía) existe `seed_demo.py`:
+
+```bash
+python seed_demo.py --reiniciar     # BORRA pulpas.db y carga la demo
+```
+
+Carga 6 productos con entradas de inventario, 13 ventas despachadas en los últimos 10 días (efectivo, transferencia y tarjeta), 4 pedidos confirmados para hoy y 2 para mañana, 2 pedidos cancelados, 3 mermas y 4 usuarios (uno desactivado). Mango y Fresa quedan en stock bajo para mostrar la alerta. Todo se crea con las mismas funciones de la aplicación, así que el inventario queda coherente con los pedidos; `tests/test_seed_demo.py` lo verifica y comprueba los ejemplos del guion de la presentación. **Es solo para demostración: no lo ejecuten sobre datos reales.**
+
 ## Pipeline de integración continua
 
 El archivo `.github/workflows/ci.yml` se ejecuta en cada `push` y `pull request`. Tiene dos trabajos:
@@ -151,7 +182,9 @@ Estado actual: ver la pestaña **Actions** del repositorio o la insignia de arri
 │   ├── productos/             # HU13
 │   ├── inventario/            # HU08 / HU14 (servicios.py = lógica de negocio)
 │   ├── pedidos/               # HU02 / HU09 / HU01 (servicios.py = lógica de negocio, dtos.py)
-│   ├── reportes/              # HU17 / HU18 (servicios.py = consultas y cálculos)
+│   ├── usuarios/              # HU22 (servicios.py = reglas de usuarios y roles)
+│   ├── reportes/              # HU17 / HU18 / HU19 (servicios.py = consultas, cálculos y CSV)
+│   ├── seguridad.py           # protección CSRF
 │   ├── tiempo.py              # "hoy" y rangos de fechas en hora de Colombia (America/Bogota)
 │   ├── formato.py             # formato de pesos para las plantillas
 │   ├── migraciones.py         # agrega columnas nuevas a bases ya creadas (lo usa seed.py)
@@ -202,6 +235,15 @@ Estado actual: ver la pestaña **Actions** del repositorio o la insignia de arri
 - **Despachar exige forma de pago:** la pantalla la pide con un selector antes de confirmar y el servidor la valida.
 - **Migración sencilla en lugar de Alembic:** `app/migraciones.py` agrega la columna nueva a bases existentes. Si el proyecto sigue creciendo conviene adoptar Alembic.
 
+## Decisiones del Sprint 5
+
+- **HU07:** las fechas del historial son la fecha de **entrega** (la misma de la vista diaria); también se busca por nombre del cliente. *Pendiente de validar con el cliente.* Lo usan ambos roles.
+- **HU15:** la regla "stock bajo" (`disponible <= umbral`, ya existente desde el Sprint 1) se mantiene: el aviso aparece cuando la existencia **llega** al umbral, no solo cuando lo supera hacia abajo. El umbral de cada producto sigue siendo propio; `UMBRAL_STOCK_BAJO_PREDETERMINADO = 5` es el valor que se propone al crear un producto (antes era 0, lo que dejaba la alerta inservible). La alerta va dentro del mismo aviso de "pedido registrado" porque varios avisos seguidos se pisan en pantalla.
+- **HU16:** una merma solo descuenta existencia **disponible**. Las unidades comprometidas por pedidos confirmados no se pueden descartar: hay que editar o cancelar el pedido primero. Solo administrador, como indica la sección 4 del documento.
+- **HU19:** CSV con separador `;` y BOM UTF-8, para que Excel en español (Colombia) lo abra en columnas y con tildes. Los valores van en pesos enteros, igual que en pantalla. Los textos que empiezan por `=`, `+`, `-` o `@` se prefijan con una comilla para evitar la inyección de fórmulas. Si se prefiere `.xlsx`, habría que agregar `openpyxl`.
+- **HU22:** los usuarios no se borran, se desactivan, para conservar quién registró cada pedido. Siempre debe quedar un administrador activo y nadie puede desactivar su propia cuenta. Desactivar cierra la sesión abierta de inmediato. Contraseña mínima de 8 caracteres, guardada solo como hash.
+- **Protección CSRF:** token por sesión exigido en todo POST. En `tests/conftest.py` se desactiva (`CSRF_ACTIVADO = False`) para no repetir el token en cada prueba; `test_seguridad_csrf.py` la activa y verifica que ningún formulario la omita. Si agregan un formulario nuevo, incluyan `<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">`.
+
 ## Trabajo colaborativo
 
 Una rama por historia (`feature/hu08-entradas-inventario`), integración a `main` mediante pull request revisado y aprobado por otro integrante, y pipeline en verde antes de fusionar.
@@ -212,7 +254,7 @@ Se utilizó Claude (Anthropic) como herramienta de apoyo durante el proyecto: es
 
 ## Pendiente para próximos sprints
 
-- Sprint 5 (Could Have): HU07 historial de pedidos, HU15 alerta de existencias bajas, HU16 mermas, HU19 exportar reporte de ventas, HU22 gestión de usuarios. Los reportes de HU17 ya devuelven estructuras (`ResumenVentas`) que HU19 puede exportar directamente.
-- Constantes con nombre para el umbral de stock bajo (`UMBRAL_STOCK_BAJO`, pendiente del chequeo de código limpio) en HU15.
-- Protección CSRF en los formularios que modifican datos (despachar, cancelar, editar, registrar): hoy ninguno la tiene. Va en el chequeo de código seguro.
+- Backlog completo implementado (Sprints 1 a 5). Lo que queda son los pendientes del chequeo de código limpio y seguro: comentarios del "porqué" (decisión de no tener estado de espera), consultas con ORM revisadas una vez más, cumplimiento de la Ley 1581 de 2012, y análisis de dependencias (`pip-audit`) y de logs en el pipeline.
+- Fuera de HU22 y no implementado: restablecer la contraseña de un usuario (hoy, si alguien la olvida, hay que desactivarlo y crear otro usuario). Conviene pedirlo al cliente.
+- El cierre de sesión (`/logout`) sigue siendo un enlace GET, sin token CSRF: lo peor que permite es cerrar una sesión.
 - Validar con el cliente la heurística de duplicados de HU09 (ventana de 30 minutos).

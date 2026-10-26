@@ -7,6 +7,7 @@
     <p class="ayuda">Las unidades que este pedido ya tiene reservadas no cuentan en "disponible": solo se verifica el inventario para las unidades adicionales.</p>
     {% endif %}
     <form id="formPedido" method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="confirmar_duplicado" id="confirmar_duplicado" value="">
 
         <label for="cliente_nombre">Cliente</label>

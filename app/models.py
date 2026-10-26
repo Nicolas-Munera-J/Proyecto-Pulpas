@@ -7,16 +7,34 @@ from app.tiempo import ahora_utc
 # Roles del sistema (HU20/HU21/HU22)
 ROL_ADMINISTRADOR = "administrador"
 ROL_GESTOR_PEDIDOS = "gestor_pedidos"
+ROLES = {
+    ROL_ADMINISTRADOR: "Administrador",
+    ROL_GESTOR_PEDIDOS: "Gestor de pedidos",
+}
 
 # Tipos de movimiento de inventario (HU08, y HU16 más adelante)
 TIPO_ENTRADA = "entrada"
 TIPO_MERMA = "merma"
+
+# Motivos de una merma (HU16): pérdidas por daño o vencimiento.
+MOTIVO_MERMA_DANIO = "danio"
+MOTIVO_MERMA_VENCIMIENTO = "vencimiento"
+MOTIVOS_MERMA = {
+    MOTIVO_MERMA_DANIO: "Daño",
+    MOTIVO_MERMA_VENCIMIENTO: "Vencimiento",
+}
+
+# Umbral de stock bajo que se propone al crear un producto (HU15). Cada
+# producto guarda su propio umbral_minimo; esta constante evita el número
+# mágico 5 repartido por el código.
+UMBRAL_STOCK_BAJO_PREDETERMINADO = 5
 
 # Estados del pedido (sección 6.2: confirmado -> despachado | cancelado).
 # No existe un estado intermedio de espera: si no hay inventario, el pedido no se toma.
 ESTADO_CONFIRMADO = "confirmado"
 ESTADO_DESPACHADO = "despachado"
 ESTADO_CANCELADO = "cancelado"
+ESTADOS_PEDIDO = (ESTADO_CONFIRMADO, ESTADO_DESPACHADO, ESTADO_CANCELADO)
 
 # Medio por el que llegó el pedido (se filtra en HU07, Sprint 5).
 CANAL_WHATSAPP = "whatsapp"
@@ -49,6 +67,12 @@ class Usuario(db.Model, UserMixin):
     rol = db.Column(db.String(30), nullable=False, default=ROL_GESTOR_PEDIDOS)
     activo = db.Column(db.Boolean, nullable=False, default=True)
     creado_en = db.Column(db.DateTime, default=datetime.utcnow)
+
+    @property
+    def is_active(self) -> bool:
+        """Flask-Login: un usuario desactivado (HU22) no puede iniciar sesión
+        ni mantener una sesión abierta."""
+        return bool(self.activo)
 
     def establecer_password(self, password_plano: str) -> None:
         self.password_hash = bcrypt.generate_password_hash(password_plano).decode("utf-8")
@@ -108,6 +132,8 @@ class MovimientoInventario(db.Model):
     cantidad = db.Column(db.Integer, nullable=False)
     fecha = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     observacion = db.Column(db.String(255), nullable=True)
+    # HU16 (Sprint 5): solo se llena en las mermas (daño o vencimiento).
+    motivo = db.Column(db.String(20), nullable=True)
     usuario_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"), nullable=False)
 
     usuario = db.relationship("Usuario")

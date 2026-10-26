@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block titulo %}Usuarios{% endblock %}
+{% block contenido %}
+<div class="encabezado-seccion">
+    <h1>Usuarios del sistema</h1>
+    <a href="{{ url_for('usuarios.crear') }}" class="boton-primario">+ Nuevo usuario</a>
+</div>
+
+<table class="tabla">
+    <thead>
+        <tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Estado</th><th>Acciones</th></tr>
+    </thead>
+    <tbody>
+        {% for u in usuarios %}
+        <tr class="{% if not u.activo %}fila-inactiva{% endif %}">
+            <td>{{ u.nombre }}{% if u.id == current_user.id %} <small>(tú)</small>{% endif %}</td>
+            <td>{{ u.email }}</td>
+            <td>
+                <form method="POST" action="{{ url_for('usuarios.cambiar_rol', usuario_id=u.id) }}" class="form-rol">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <select name="rol" aria-label="Rol de {{ u.nombre }}">
+                        {% for clave, etiqueta in roles.items() %}
+                        <option value="{{ clave }}" {% if clave == u.rol %}selected{% endif %}>{{ etiqueta }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="boton-secundario">Cambiar</button>
+                </form>
+            </td>
+            <td>
+                {% if u.activo %}<span class="estado estado-confirmado">Activo</span>
+                {% else %}<span class="estado estado-cancelado">Desactivado</span>{% endif %}
+            </td>
+            <td class="acciones">
+                {% if u.activo %}
+                    {% if u.id != current_user.id %}
+                    <form method="POST" action="{{ url_for('usuarios.desactivar', usuario_id=u.id) }}"
+                          class="form-accion" data-titulo="¿Desactivar a {{ u.nombre }}?"
+                          data-texto="No podrá iniciar sesión y su sesión actual se cerrará. Sus pedidos y registros se conservan."
+                          data-boton="Sí, desactivar">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="boton-peligro">Desactivar</button>
+                    </form>
+                    {% endif %}
+                {% else %}
+                <form method="POST" action="{{ url_for('usuarios.activar', usuario_id=u.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="boton-primario">Activar</button>
+                </form>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Desactivar pide confirmación. Se usa "text" porque el nombre lo escribe una persona.
+    document.querySelectorAll(".form-accion").forEach(function (formulario) {
+        formulario.addEventListener("submit", function (evento) {
+            evento.preventDefault();
+            Swal.fire({
+                icon: "warning",
+                title: formulario.dataset.titulo,
+                text: formulario.dataset.texto,
+                showCancelButton: true,
+                confirmButtonText: formulario.dataset.boton,
+                cancelButtonText: "No, volver",
+                confirmButtonColor: "#e8590c"
+            }).then(function (resultado) {
+                if (resultado.isConfirmed) formulario.submit();
+            });
+        });
+    });
+</script>
+{% endblock %}

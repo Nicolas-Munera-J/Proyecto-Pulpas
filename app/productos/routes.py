@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, redirect, url_for, request, flash
 from flask_login import login_required
 
 from app.extensions import db
-from app.models import Producto
+from app.models import UMBRAL_STOCK_BAJO_PREDETERMINADO, Producto
 from app.auth.decoradores import requiere_administrador
 from app.errores import DatosInvalidosException
 
@@ -28,7 +28,7 @@ def crear():
             presentacion = request.form.get("presentacion", "").strip()
             unidad_medida = request.form.get("unidad_medida", "").strip()
             precio = request.form.get("precio", "0")
-            umbral_minimo = request.form.get("umbral_minimo", "0")
+            umbral_minimo = request.form.get("umbral_minimo", str(UMBRAL_STOCK_BAJO_PREDETERMINADO))
 
             if not nombre or not presentacion or not unidad_medida:
                 raise DatosInvalidosException("Nombre, presentación y unidad de medida son obligatorios.")
@@ -48,4 +48,4 @@ def crear():
         except (DatosInvalidosException, ValueError) as error:
             flash(str(error) or "Datos inválidos.", "error")
 
-    return render_template("productos/form.html")
+    return render_template("productos/form.html", umbral_predeterminado=UMBRAL_STOCK_BAJO_PREDETERMINADO)
