@@ -138,3 +138,15 @@ form input, form select {
 .selector-fecha input { width: auto; margin: 0; }
 .ayuda { color: #666; font-size: 0.9rem; background: #fff8f0; padding: 8px 12px; border-radius: 6px; }
 .enlace-cancelar { margin-left: 12px; color: #777; }
+
+/* ---- Sprint 4: totales y reportes ---- */
+.total-formulario { text-align: right; font-size: 1.2rem; margin: 16px 0; }
+.total-pedido { font-weight: 700; white-space: nowrap; }
+.formulario-periodo { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin: 8px 0 20px; }
+.formulario-periodo label { display: block; margin-bottom: 4px; }
+.formulario-periodo input { width: auto; margin: 0; }
+.resumen-tarjetas .tarjeta .numero.monto { font-size: 1.8rem; }
+.celda-numero { text-align: right; white-space: nowrap; }
+.barra-contenedor { background: #f1f1f1; border-radius: 4px; min-width: 120px; }
+.barra { background: #e8590c; height: 12px; border-radius: 4px; }
+.sin-datos { color: #777; padding: 16px 0; }

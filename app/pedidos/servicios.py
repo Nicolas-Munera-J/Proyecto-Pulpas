@@ -25,6 +25,7 @@ from app.inventario.servicios import (
 )
 from app.models import (
     CANALES,
+    FORMAS_PAGO,
     ESTADO_CANCELADO,
     ESTADO_CONFIRMADO,
     ESTADO_DESPACHADO,
@@ -340,19 +341,26 @@ def editar_pedido(pedido_id: int, datos: PedidoDTO) -> Pedido:
     return pedido
 
 
-# ---- HU05 - Despacho -------------------------------------------------------
-def despachar_pedido(pedido_id: int) -> Pedido:
+# ---- HU05 - Despacho / HU11 - Forma de pago ---------------------------------
+def despachar_pedido(pedido_id: int, forma_pago: str) -> Pedido:
     """HU05 - Pasa un pedido confirmado a despachado y registra fecha y hora.
+    HU11 - Registra la forma de pago, que queda disponible para los reportes.
 
     Las unidades salen físicamente del negocio, así que dejan de estar
     comprometidas (la existencia disponible no cambia: ya estaba descontada).
     """
+    if forma_pago not in FORMAS_PAGO:
+        raise DatosInvalidosException("Selecciona una forma de pago válida para despachar el pedido.")
+
     pedido = _obtener_pedido_confirmado(pedido_id, "despachar")
     cantidades = cantidades_del_pedido(pedido)
 
     try:
         _cambiar_estado_desde_confirmado(
-            pedido.id, ESTADO_DESPACHADO, fecha_despacho=ahora_utc()
+            pedido.id,
+            ESTADO_DESPACHADO,
+            fecha_despacho=ahora_utc(),
+            forma_pago=forma_pago,
         )
         consumir_existencia_comprometida(cantidades)
         db.session.commit()

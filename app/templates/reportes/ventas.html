@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block titulo %}Reporte de ventas{% endblock %}
+{% block contenido %}
+<h1>Reporte de ventas</h1>
+<p class="ayuda">Cuenta los pedidos <strong>despachados</strong> entre las dos fechas (ambas incluidas), según el día en que se despacharon.</p>
+{% include "reportes/_periodo.html" %}
+
+{% if resumen %}
+<div class="resumen-tarjetas">
+    <div class="tarjeta">
+        <span class="numero monto">{{ resumen.total_ventas | moneda }}</span>
+        <span class="etiqueta">Total de ventas</span>
+    </div>
+    <div class="tarjeta">
+        <span class="numero">{{ resumen.numero_pedidos }}</span>
+        <span class="etiqueta">Pedidos despachados</span>
+    </div>
+</div>
+
+{% if resumen.numero_pedidos %}
+<h2>Por forma de pago</h2>
+<table class="tabla">
+    <thead>
+        <tr><th>Forma de pago</th><th class="celda-numero">Pedidos</th><th class="celda-numero">Total</th></tr>
+    </thead>
+    <tbody>
+        {% for fila in resumen.por_forma_pago %}
+        <tr>
+            <td>{{ fila.forma_pago | capitalize }}</td>
+            <td class="celda-numero">{{ fila.numero_pedidos }}</td>
+            <td class="celda-numero">{{ fila.total | moneda }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="sin-datos">No hay ventas despachadas en este periodo.</p>
+{% endif %}
+{% endif %}
+{% endblock %}

@@ -21,6 +21,7 @@
             <th>Productos</th>
             <th>Canal</th>
             <th>Registrado</th>
+            <th>Total</th>
             <th>Estado</th>
             <th>Acciones</th>
         </tr>
@@ -36,19 +37,21 @@
             <td>
                 <ul class="lista-productos">
                     {% for d in pedido.detalles %}
-                    <li>{{ d.cantidad }} × {{ d.producto.nombre }} ({{ d.producto.presentacion }})</li>
+                    <li>{{ d.cantidad }} × {{ d.producto.nombre }} ({{ d.producto.presentacion }}) — {{ d.subtotal | moneda }}</li>
                     {% endfor %}
                 </ul>
             </td>
             <td>{{ pedido.canal | capitalize }}</td>
             <td>{{ (pedido.fecha_creacion | hora_local).strftime("%H:%M") }}</td>
+            <td class="total-pedido">{{ pedido.total | moneda }}</td>
             <td><span class="estado estado-{{ pedido.estado }}">{{ pedido.estado | capitalize }}</span></td>
             <td class="acciones">
                 <a href="{{ url_for('pedidos.editar', pedido_id=pedido.id) }}" class="boton-secundario">Editar</a>
                 <form method="POST" action="{{ url_for('pedidos.despachar', pedido_id=pedido.id) }}"
                       class="form-accion" data-titulo="¿Despachar el pedido #{{ pedido.id }}?"
-                      data-texto="Se marcará como despachado para {{ pedido.cliente_nombre }} y ya no podrá editarse ni cancelarse."
-                      data-boton="Sí, despachar">
+                      data-texto="Total a cobrar a {{ pedido.cliente_nombre }}: {{ pedido.total | moneda }}. Una vez despachado ya no podrá editarse ni cancelarse."
+                      data-boton="Sí, despachar" data-pago="1">
+                    <input type="hidden" name="forma_pago" value="">
                     <button type="submit" class="boton-primario">Despachar</button>
                 </form>
                 <form method="POST" action="{{ url_for('pedidos.cancelar', pedido_id=pedido.id) }}"
@@ -60,7 +63,7 @@
             </td>
         </tr>
         {% else %}
-        <tr><td colspan="7">No hay pedidos confirmados para entregar {% if es_hoy %}hoy{% else %}ese día{% endif %}.</td></tr>
+        <tr><td colspan="8">No hay pedidos confirmados para entregar {% if es_hoy %}hoy{% else %}ese día{% endif %}.</td></tr>
         {% endfor %}
     </tbody>
 </table>
@@ -68,12 +71,20 @@
 
 {% block scripts %}
 <script>
+    // HU11: la forma de pago se elige al despachar.
+    const formasPago = {{ formas_pago | tojson }};
+    const opcionesPago = {};
+    formasPago.forEach(function (forma) {
+        opcionesPago[forma] = forma.charAt(0).toUpperCase() + forma.slice(1);
+    });
+
     // Despachar y cancelar no se pueden deshacer: se pide confirmación.
     // Se usa "text" (no "html") porque el nombre del cliente lo escribe una persona.
     document.querySelectorAll(".form-accion").forEach(function (formulario) {
         formulario.addEventListener("submit", function (evento) {
             evento.preventDefault();
-            Swal.fire({
+            const pideFormaDePago = formulario.dataset.pago === "1";
+            const opciones = {
                 icon: "question",
                 title: formulario.dataset.titulo,
                 text: formulario.dataset.texto,
@@ -81,8 +92,21 @@
                 confirmButtonText: formulario.dataset.boton,
                 cancelButtonText: "No, volver",
                 confirmButtonColor: "#e8590c"
-            }).then(function (resultado) {
-                if (resultado.isConfirmed) formulario.submit();
+            };
+            if (pideFormaDePago) {
+                opciones.input = "select";
+                opciones.inputOptions = opcionesPago;
+                opciones.inputPlaceholder = "Forma de pago";
+                opciones.inputValidator = function (valor) {
+                    if (!valor) return "Selecciona la forma de pago.";
+                };
+            }
+            Swal.fire(opciones).then(function (resultado) {
+                if (!resultado.isConfirmed) return;
+                if (pideFormaDePago) {
+                    formulario.querySelector("[name=forma_pago]").value = resultado.value;
+                }
+                formulario.submit();
             });
         });
     });

@@ -7,12 +7,15 @@ Uso:
 """
 from app import create_app
 from app.extensions import db
+from app.migraciones import agregar_columnas_faltantes
 from app.models import Usuario, Producto, ROL_ADMINISTRADOR, ROL_GESTOR_PEDIDOS
 
 app = create_app()
 
 with app.app_context():
     db.create_all()
+    for columna in agregar_columnas_faltantes(db.engine):
+        print(f"Columna agregada a la base existente: {columna}")
 
     if Usuario.query.filter_by(email="admin@pulpas.com").first() is None:
         admin = Usuario(nombre="Administrador Demo", email="admin@pulpas.com", rol=ROL_ADMINISTRADOR)

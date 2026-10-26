@@ -37,6 +37,8 @@
         <div id="lineas"></div>
         <button type="button" id="agregarLinea" class="boton-secundario">+ Agregar producto</button>
 
+        <p class="total-formulario">Total: <strong id="totalPedido">$ 0</strong></p>
+
         <button type="submit" class="boton-primario">{% if pedido %}Guardar cambios{% else %}Registrar pedido{% endif %}</button>
         {% if pedido %}
         <a href="{{ url_for('pedidos.hoy', fecha=pedido.fecha_entrega.isoformat()) }}" class="enlace-cancelar">Volver sin guardar</a>
@@ -49,7 +51,7 @@
         <select name="producto_id" required>
             <option value="" disabled selected>Selecciona un producto</option>
             {% for p in productos %}
-            <option value="{{ p.id }}">{{ p.nombre }} ({{ p.presentacion }}) — disponible: {{ p.existencia_disponible }}{% if p.id in reservado %} · en este pedido: {{ reservado[p.id] }}{% endif %}</option>
+            <option value="{{ p.id }}" data-precio="{{ precios_del_pedido[p.id] if p.id in precios_del_pedido else p.precio }}">{{ p.nombre }} ({{ p.presentacion }}) — disponible: {{ p.existencia_disponible }}{% if p.id in reservado %} · en este pedido: {{ reservado[p.id] }}{% endif %}</option>
             {% endfor %}
         </select>
         <input type="number" name="cantidad" min="1" placeholder="Cant." required>
@@ -72,8 +74,25 @@
         }
         linea.querySelector(".quitar-linea").addEventListener("click", function () {
             if (contenedor.children.length > 1) linea.remove();
+            actualizarTotal();
         });
+        linea.addEventListener("input", actualizarTotal);
         contenedor.appendChild(linea);
+        actualizarTotal();
+    }
+
+    // HU10: vista previa del total. El valor oficial lo calcula el servidor.
+    function actualizarTotal() {
+        let total = 0;
+        contenedor.querySelectorAll(".linea-pedido").forEach(function (linea) {
+            const opcion = linea.querySelector("select").selectedOptions[0];
+            const cantidad = parseInt(linea.querySelector("input").value, 10);
+            if (opcion && opcion.dataset.precio && cantidad > 0) {
+                total += cantidad * parseFloat(opcion.dataset.precio);
+            }
+        });
+        document.getElementById("totalPedido").textContent =
+            "$ " + Math.round(total).toLocaleString("es-CO");
     }
 
     {{ valores.lineas | tojson }}.forEach(agregarLinea);

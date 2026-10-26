@@ -1,0 +1,11 @@
+<form method="GET" class="formulario-periodo">
+    <div>
+        <label for="desde">Desde</label>
+        <input type="date" id="desde" name="desde" value="{{ desde.isoformat() }}" required>
+    </div>
+    <div>
+        <label for="hasta">Hasta</label>
+        <input type="date" id="hasta" name="hasta" value="{{ hasta.isoformat() }}" required>
+    </div>
+    <button type="submit" class="boton-primario">Consultar</button>
+</form>

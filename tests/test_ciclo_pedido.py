@@ -31,6 +31,7 @@ from app.inventario.servicios import (
     verificar_coherencia_inventario,
 )
 from app.models import (
+    FORMA_PAGO_EFECTIVO,
     ESTADO_CANCELADO,
     ESTADO_CONFIRMADO,
     ESTADO_DESPACHADO,
@@ -120,7 +121,7 @@ def test_no_se_puede_cancelar_dos_veces_ni_un_despachado(app):
 
     with app.app_context():
         cancelar_pedido(cancelado)
-        despachar_pedido(despachado)
+        despachar_pedido(despachado, FORMA_PAGO_EFECTIVO)
         with pytest.raises(TransicionDePedidoInvalidaException):
             cancelar_pedido(cancelado)  # no libera por segunda vez
         with pytest.raises(TransicionDePedidoInvalidaException):
@@ -144,7 +145,7 @@ def test_despachar_registra_fecha_y_descuenta_lo_comprometido(app):
     pedido_id = _crear(app, [(mora, 4)])
 
     with app.app_context():
-        pedido = despachar_pedido(pedido_id)
+        pedido = despachar_pedido(pedido_id, FORMA_PAGO_EFECTIVO)
         assert pedido.estado == ESTADO_DESPACHADO
         assert pedido.fecha_despacho is not None
 
@@ -160,12 +161,12 @@ def test_no_se_puede_despachar_dos_veces_ni_un_cancelado(app):
     dos = _crear(app, [(mora, 3)], cliente="Dos")
 
     with app.app_context():
-        despachar_pedido(uno)
+        despachar_pedido(uno, FORMA_PAGO_EFECTIVO)
         cancelar_pedido(dos)
         with pytest.raises(TransicionDePedidoInvalidaException):
-            despachar_pedido(uno)  # no descuenta dos veces
+            despachar_pedido(uno, FORMA_PAGO_EFECTIVO)  # no descuenta dos veces
         with pytest.raises(TransicionDePedidoInvalidaException):
-            despachar_pedido(dos)
+            despachar_pedido(dos, FORMA_PAGO_EFECTIVO)
 
     assert _existencias(app, NOMBRE_PRODUCTO) == (EXISTENCIA_INICIAL - 2, 0)
     _coherente(app)
@@ -177,7 +178,7 @@ def test_pedido_despachado_sale_de_los_pedidos_del_dia(app):
 
     with app.app_context():
         assert [p.id for p in listar_pedidos_del_dia()] == [pedido_id]
-        despachar_pedido(pedido_id)
+        despachar_pedido(pedido_id, FORMA_PAGO_EFECTIVO)
         assert listar_pedidos_del_dia() == []
 
 
@@ -278,7 +279,7 @@ def test_no_se_puede_editar_un_pedido_despachado_ni_cancelado(app):
     cancelado = _crear(app, [(mora, 1)], cliente="Dos")
 
     with app.app_context():
-        despachar_pedido(despachado)
+        despachar_pedido(despachado, FORMA_PAGO_EFECTIVO)
         cancelar_pedido(cancelado)
         for pedido_id in (despachado, cancelado):
             with pytest.raises(TransicionDePedidoInvalidaException):
@@ -333,7 +334,7 @@ def test_secuencia_completa_mantiene_el_inventario_coherente(app):
 
     with app.app_context():
         editar_pedido(a, _dto(gestor, [(mora, 5)], cliente="A"))
-        despachar_pedido(b)
+        despachar_pedido(b, FORMA_PAGO_EFECTIVO)
         cancelar_pedido(c)
     _coherente(app)
 
@@ -392,7 +393,9 @@ def test_interfaz_cancelar_y_despachar(app, cliente):
     r = cliente.post(f"/pedidos/{a}/cancelar", follow_redirects=True)
     assert b"cancelado. Inventario liberado" in r.data
 
-    r = cliente.post(f"/pedidos/{b}/despachar", follow_redirects=True)
+    r = cliente.post(
+        f"/pedidos/{b}/despachar", data={"forma_pago": FORMA_PAGO_EFECTIVO}, follow_redirects=True
+    )
     assert b"despachado." in r.data
 
     assert _existencias(app, NOMBRE_PRODUCTO) == (EXISTENCIA_INICIAL - 3, 0)
@@ -404,7 +407,7 @@ def test_interfaz_accion_repetida_muestra_error_y_no_mueve_inventario(app, clien
     pedido_id = _crear(app, [(mora, 2)])
     _iniciar_sesion_gestor(cliente)
 
-    cliente.post(f"/pedidos/{pedido_id}/despachar")
+    cliente.post(f"/pedidos/{pedido_id}/despachar", data={"forma_pago": FORMA_PAGO_EFECTIVO})
     r = cliente.post(f"/pedidos/{pedido_id}/cancelar", follow_redirects=True)
 
     assert b"ya est" in r.data and b"despachado" in r.data
@@ -462,7 +465,7 @@ def test_interfaz_no_permite_editar_pedido_cancelado(app, cliente):
 def test_interfaz_pedido_inexistente_da_404(app, cliente):
     _iniciar_sesion_gestor(cliente)
     assert cliente.get("/pedidos/9999/editar").status_code == 404
-    assert cliente.post("/pedidos/9999/despachar").status_code == 404
+    assert cliente.post("/pedidos/9999/despachar", data={"forma_pago": FORMA_PAGO_EFECTIVO}).status_code == 404
     assert cliente.post("/pedidos/9999/cancelar").status_code == 404
 
 

@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block titulo %}Productos más vendidos{% endblock %}
+{% block contenido %}
+<h1>Productos más vendidos</h1>
+<p class="ayuda">Unidades en pedidos <strong>despachados</strong> entre las dos fechas (ambas incluidas), de mayor a menor.</p>
+{% include "reportes/_periodo.html" %}
+
+{% if ranking is not none %}
+{% if ranking %}
+{% set maximo = ranking[0].cantidad %}
+<table class="tabla">
+    <thead>
+        <tr>
+            <th>#</th>
+            <th>Producto</th>
+            <th class="celda-numero">Unidades</th>
+            <th></th>
+            <th class="celda-numero">Ingresos</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for p in ranking %}
+        <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ p.nombre }} ({{ p.presentacion }})</td>
+            <td class="celda-numero">{{ p.cantidad }}</td>
+            <td><div class="barra-contenedor"><div class="barra" style="width: {{ (p.cantidad * 100 / maximo) | round(0) | int }}%"></div></div></td>
+            <td class="celda-numero">{{ p.ingresos | moneda }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="sin-datos">No hay productos vendidos en este periodo.</p>
+{% endif %}
+{% endif %}
+{% endblock %}

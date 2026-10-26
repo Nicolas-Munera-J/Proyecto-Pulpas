@@ -11,7 +11,14 @@ from app.errores import (
     TransicionDePedidoInvalidaException,
 )
 from app.extensions import db
-from app.models import CANAL_WHATSAPP, CANALES, ESTADO_CONFIRMADO, Pedido, Producto
+from app.models import (
+    CANAL_WHATSAPP,
+    CANALES,
+    ESTADO_CONFIRMADO,
+    FORMAS_PAGO,
+    Pedido,
+    Producto,
+)
 from app.pedidos.dtos import ItemPedidoDTO, PedidoDTO
 from app.pedidos.servicios import (
     cancelar_pedido,
@@ -97,11 +104,14 @@ def _mostrar_formulario(valores: dict, duplicado=None, pedido=None):
     """Formulario compartido por "nuevo pedido" (pedido=None) y "editar"."""
     consulta = Producto.query
     reservado = {}
+    precios_del_pedido = {}
     fecha_minima = hoy_negocio()
     if pedido is not None:
         # En edición, un producto del pedido que luego se desactivó debe seguir
         # apareciendo, o el formulario no podría guardarse.
         reservado = cantidades_del_pedido(pedido)
+        # Las líneas que ya tiene el pedido conservan su precio original (HU10).
+        precios_del_pedido = {d.producto_id: d.precio_unitario for d in pedido.detalles}
         consulta = consulta.filter(
             or_(Producto.activo.is_(True), Producto.id.in_(list(reservado)))
         )
@@ -118,6 +128,7 @@ def _mostrar_formulario(valores: dict, duplicado=None, pedido=None):
         duplicado=duplicado,
         pedido=pedido,
         reservado=reservado,
+        precios_del_pedido=precios_del_pedido,
     )
 
 
@@ -164,6 +175,7 @@ def hoy():
         pedidos=listar_pedidos_del_dia(fecha),
         fecha=fecha,
         es_hoy=fecha == hoy_negocio(),
+        formas_pago=FORMAS_PAGO,
     )
 
 
@@ -214,8 +226,11 @@ def _ejecutar_accion(pedido_id: int, accion, mensaje_exito: str):
 @login_required
 def despachar(pedido_id):
     """HU05 - Marcar pedido como despachado."""
+    forma_pago = request.form.get("forma_pago", "")
     return _ejecutar_accion(
-        pedido_id, despachar_pedido, "Pedido #{id} de {cliente} despachado."
+        pedido_id,
+        lambda id_pedido: despachar_pedido(id_pedido, forma_pago),
+        "Pedido #{id} de {cliente} despachado.",
     )
 
 

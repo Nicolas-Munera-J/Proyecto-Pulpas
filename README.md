@@ -8,7 +8,7 @@ Sistema web para digitalizar la gestión de pedidos, inventario y ventas de un n
 
 ## Estado del proyecto
 
-Sprints 1 a 3 completos: base del sistema, usuarios e inventario (S1); registro y consulta de pedidos (S2); ciclo del pedido e inventario comprometido (S3).
+Sprints 1 a 4 completos: base del sistema, usuarios e inventario (S1); registro y consulta de pedidos (S2); ciclo del pedido e inventario comprometido (S3); totales, formas de pago y reportes (S4).
 
 - **HU20** – Inicio de sesión
 - **HU21** – Cierre de sesión
@@ -28,6 +28,13 @@ Sprints 1 a 3 completos: base del sistema, usuarios e inventario (S1); registro 
 - **HU04** – Inventario comprometido sincronizado (`app/inventario/servicios.py`)
 - **HU05** – Marcar pedido como despachado (botón en la vista diaria)
 - **HU06** – Cancelación de un pedido (botón en la vista diaria)
+
+**Sprint 4**
+
+- **HU10** – Cálculo automático del total del pedido (vista de pedidos y vista previa en el formulario)
+- **HU11** – Registro de la forma de pago al despachar
+- **HU17** – Reporte de ventas por periodo (`/reportes/ventas`, solo administrador)
+- **HU18** – Productos más vendidos (`/reportes/productos-mas-vendidos`, solo administrador)
 
 **Historia del taller de integración continua: HU08.** El administrador registra una entrada de inventario (producto, cantidad, observación) y la existencia disponible aumenta. Ruta: `/inventario/entradas` · lógica: `app/inventario/servicios.py` · datos: tablas `productos` y `movimientos_inventario`.
 
@@ -63,7 +70,7 @@ python run.py                   # servidor en http://127.0.0.1:5000
 - El **Administrador** puede registrar productos y entradas de inventario (HU13, HU08).
 - El **Gestor de pedidos** puede consultar existencias, registrar pedidos y ver los pedidos del día, pero recibe un error 403 si intenta registrar entradas.
 
-Si ya tenías una base `pulpas.db` del Sprint 1, vuelve a ejecutar `python seed.py`: crea las tablas nuevas (`pedidos`, `detalles_pedido`) sin tocar los datos existentes.
+**Si ya tenías una base `pulpas.db` de un sprint anterior, vuelve a ejecutar `python seed.py`.** Crea las tablas nuevas y, desde el Sprint 4, también agrega la columna `pedidos.forma_pago` a la tabla existente (`create_all()` por sí solo no agrega columnas). No borra datos y se puede ejecutar varias veces. Los pedidos despachados antes del Sprint 4 quedan con forma de pago "sin registrar" en los reportes.
 
 Para un despliegue real, la clave de sesiones se define con la variable de entorno `SECRET_KEY` y las contraseñas de los usuarios de demostración se cambian. Nunca se suben claves reales, tokens ni archivos `.env` al repositorio (ver `.gitignore`).
 
@@ -111,6 +118,17 @@ Las pruebas usan una base de datos SQLite en memoria; no tocan `pulpas.db`. Cubr
 | HU04 | Tras cualquier secuencia de operaciones, lo comprometido en productos = suma de pedidos confirmados (`verificar_coherencia_inventario`); nunca quedan existencias negativas |
 | Interfaz | Editar, despachar y cancelar por HTTP, 404 en pedidos inexistentes, redirección al login sin sesión, consulta de otra fecha |
 
+**Pruebas del Sprint 4** (`tests/test_ventas_reportes.py`):
+
+| Historia | Qué verifican |
+|---|---|
+| HU10 | Total = suma de cantidad × precio (2 × $8.500 + 3 × $9.000 = $44.000); se recalcula al editar; un cambio de precio en el catálogo no altera pedidos ya tomados; formato en pesos |
+| HU11 | Despachar guarda la forma de pago; sin forma de pago válida (vacía, nula, desconocida) se rechaza sin cambiar estado ni inventario; flujo por HTTP |
+| HU17 | Solo cuentan los pedidos despachados; respeta el rango de fechas; el periodo se mide en hora de Colombia (venta de las 11:30 p. m. cuenta ese día); desglose por forma de pago; periodo inválido; precios históricos |
+| HU18 | Orden de mayor a menor cantidad, suma entre pedidos, excluye no despachados, desempate por nombre, respeta el periodo |
+| Seguridad | Los reportes devuelven 403 al gestor de pedidos y redirigen al login sin sesión (el rol se valida en el servidor) |
+| Migración | Agrega `forma_pago` a una base del Sprint 3 sin perder datos y es idempotente |
+
 ## Pipeline de integración continua
 
 El archivo `.github/workflows/ci.yml` se ejecuta en cada `push` y `pull request`. Tiene dos trabajos:
@@ -133,7 +151,10 @@ Estado actual: ver la pestaña **Actions** del repositorio o la insignia de arri
 │   ├── productos/             # HU13
 │   ├── inventario/            # HU08 / HU14 (servicios.py = lógica de negocio)
 │   ├── pedidos/               # HU02 / HU09 / HU01 (servicios.py = lógica de negocio, dtos.py)
-│   ├── tiempo.py              # "hoy" en hora de Colombia (America/Bogota)
+│   ├── reportes/              # HU17 / HU18 (servicios.py = consultas y cálculos)
+│   ├── tiempo.py              # "hoy" y rangos de fechas en hora de Colombia (America/Bogota)
+│   ├── formato.py             # formato de pesos para las plantillas
+│   ├── migraciones.py         # agrega columnas nuevas a bases ya creadas (lo usa seed.py)
 │   ├── main/                  # dashboard
 │   ├── templates/
 │   └── static/css/
@@ -171,6 +192,16 @@ Estado actual: ver la pestaña **Actions** del repositorio o la insignia de arri
 - **La vista diaria acepta `?fecha=AAAA-MM-DD`** para poder editar, despachar o cancelar pedidos de otros días; el historial completo es HU07 (Sprint 5).
 - **Sin confirmación de pago ni totales todavía:** la forma de pago al despachar (HU11) llega en el Sprint 4.
 
+## Decisiones del Sprint 4
+
+- **Una venta es un pedido despachado.** Los confirmados aún no se entregan ni se cobran, y los cancelados nunca se vendieron. El periodo de los reportes se mide por la fecha y hora de despacho, no por la de entrega ni la de registro. *Pendiente de validar con el cliente.*
+- **Los periodos usan hora de Colombia.** Las fechas se guardan en UTC; una venta despachada a las 11:30 p. m. ya es del día siguiente en UTC, así que se convierte el rango antes de consultar.
+- **Los totales usan el precio guardado en cada línea (`precio_unitario`)**, no el del catálogo. Cambiar un precio no altera pedidos ni ventas ya realizadas. En una edición, las líneas que ya existían conservan su precio y las líneas nuevas entran al precio vigente.
+- **Formas de pago:** efectivo, transferencia, tarjeta y otro. No incluí "crédito/fiado" porque el documento no lo menciona. *Si el negocio vende a crédito, hay que validarlo con el cliente.*
+- **Los reportes son solo del Administrador**, como indica la sección 4 del documento; el rol se valida en cada endpoint.
+- **Despachar exige forma de pago:** la pantalla la pide con un selector antes de confirmar y el servidor la valida.
+- **Migración sencilla en lugar de Alembic:** `app/migraciones.py` agrega la columna nueva a bases existentes. Si el proyecto sigue creciendo conviene adoptar Alembic.
+
 ## Trabajo colaborativo
 
 Una rama por historia (`feature/hu08-entradas-inventario`), integración a `main` mediante pull request revisado y aprobado por otro integrante, y pipeline en verde antes de fusionar.
@@ -181,6 +212,7 @@ Se utilizó Claude (Anthropic) como herramienta de apoyo durante el proyecto: es
 
 ## Pendiente para próximos sprints
 
-- Sprint 4: totales automáticos, forma de pago y reportes (HU10, HU11, HU17, HU18). HU11 se registra al despachar: habrá que ampliar `despachar_pedido`.
+- Sprint 5 (Could Have): HU07 historial de pedidos, HU15 alerta de existencias bajas, HU16 mermas, HU19 exportar reporte de ventas, HU22 gestión de usuarios. Los reportes de HU17 ya devuelven estructuras (`ResumenVentas`) que HU19 puede exportar directamente.
+- Constantes con nombre para el umbral de stock bajo (`UMBRAL_STOCK_BAJO`, pendiente del chequeo de código limpio) en HU15.
 - Protección CSRF en los formularios que modifican datos (despachar, cancelar, editar, registrar): hoy ninguno la tiene. Va en el chequeo de código seguro.
 - Validar con el cliente la heurística de duplicados de HU09 (ventana de 30 minutos).

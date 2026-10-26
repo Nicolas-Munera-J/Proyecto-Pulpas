@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 from flask_login import UserMixin
 from app.extensions import db, bcrypt
 from app.tiempo import ahora_utc
@@ -22,6 +23,18 @@ CANAL_WHATSAPP = "whatsapp"
 CANAL_VERBAL = "verbal"
 CANAL_OTRO = "otro"
 CANALES = (CANAL_WHATSAPP, CANAL_VERBAL, CANAL_OTRO)
+
+# Forma de pago, que se registra al despachar el pedido (HU11).
+FORMA_PAGO_EFECTIVO = "efectivo"
+FORMA_PAGO_TRANSFERENCIA = "transferencia"
+FORMA_PAGO_TARJETA = "tarjeta"
+FORMA_PAGO_OTRO = "otro"
+FORMAS_PAGO = (
+    FORMA_PAGO_EFECTIVO,
+    FORMA_PAGO_TRANSFERENCIA,
+    FORMA_PAGO_TARJETA,
+    FORMA_PAGO_OTRO,
+)
 
 
 class Usuario(db.Model, UserMixin):
@@ -119,6 +132,8 @@ class Pedido(db.Model):
     fecha_creacion = db.Column(db.DateTime, nullable=False, default=ahora_utc)
     # La usa HU05 (Sprint 3). Se crea ya para no tener que alterar la tabla después.
     fecha_despacho = db.Column(db.DateTime, nullable=True)
+    # HU11 (Sprint 4): se llena al despachar y alimenta los reportes de ventas.
+    forma_pago = db.Column(db.String(20), nullable=True)
     usuario_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"), nullable=False)
 
     usuario = db.relationship("Usuario")
@@ -128,6 +143,11 @@ class Pedido(db.Model):
         cascade="all, delete-orphan",
         order_by="DetallePedido.id",
     )
+
+    @property
+    def total(self) -> Decimal:
+        """HU10 - Total del pedido: suma de los subtotales de sus líneas."""
+        return sum((d.subtotal for d in self.detalles), Decimal("0"))
 
     def __repr__(self):
         return f"<Pedido {self.id} {self.cliente_nombre} ({self.estado})>"
@@ -150,3 +170,8 @@ class DetallePedido(db.Model):
 
     pedido = db.relationship("Pedido", back_populates="detalles")
     producto = db.relationship("Producto")
+
+    @property
+    def subtotal(self) -> Decimal:
+        """HU10 - cantidad × precio vigente cuando se registró la línea."""
+        return self.cantidad * Decimal(str(self.precio_unitario))
