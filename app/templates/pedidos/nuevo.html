@@ -1,8 +1,11 @@
 {% extends "base.html" %}
-{% block titulo %}Nuevo pedido{% endblock %}
+{% block titulo %}{% if pedido %}Editar pedido #{{ pedido.id }}{% else %}Nuevo pedido{% endif %}{% endblock %}
 {% block contenido %}
 <div class="tarjeta-pedido">
-    <h1>Registrar pedido</h1>
+    <h1>{% if pedido %}Editar pedido #{{ pedido.id }}{% else %}Registrar pedido{% endif %}</h1>
+    {% if pedido %}
+    <p class="ayuda">Las unidades que este pedido ya tiene reservadas no cuentan en "disponible": solo se verifica el inventario para las unidades adicionales.</p>
+    {% endif %}
     <form id="formPedido" method="POST">
         <input type="hidden" name="confirmar_duplicado" id="confirmar_duplicado" value="">
 
@@ -34,7 +37,10 @@
         <div id="lineas"></div>
         <button type="button" id="agregarLinea" class="boton-secundario">+ Agregar producto</button>
 
-        <button type="submit" class="boton-primario">Registrar pedido</button>
+        <button type="submit" class="boton-primario">{% if pedido %}Guardar cambios{% else %}Registrar pedido{% endif %}</button>
+        {% if pedido %}
+        <a href="{{ url_for('pedidos.hoy', fecha=pedido.fecha_entrega.isoformat()) }}" class="enlace-cancelar">Volver sin guardar</a>
+        {% endif %}
     </form>
 </div>
 
@@ -43,7 +49,7 @@
         <select name="producto_id" required>
             <option value="" disabled selected>Selecciona un producto</option>
             {% for p in productos %}
-            <option value="{{ p.id }}">{{ p.nombre }} ({{ p.presentacion }}) — disponible: {{ p.existencia_disponible }}</option>
+            <option value="{{ p.id }}">{{ p.nombre }} ({{ p.presentacion }}) — disponible: {{ p.existencia_disponible }}{% if p.id in reservado %} · en este pedido: {{ reservado[p.id] }}{% endif %}</option>
             {% endfor %}
         </select>
         <input type="number" name="cantidad" min="1" placeholder="Cant." required>

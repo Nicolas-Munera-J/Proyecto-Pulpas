@@ -1,10 +1,17 @@
 {% extends "base.html" %}
-{% block titulo %}Pedidos de hoy{% endblock %}
+{% block titulo %}{% if es_hoy %}Pedidos de hoy{% else %}Pedidos del {{ fecha.strftime("%d/%m/%Y") }}{% endif %}{% endblock %}
 {% block contenido %}
 <div class="encabezado-seccion">
-    <h1>Pedidos de hoy <small class="fecha-titulo">{{ fecha.strftime("%d/%m/%Y") }}</small></h1>
+    <h1>{% if es_hoy %}Pedidos de hoy{% else %}Pedidos del día{% endif %} <small class="fecha-titulo">{{ fecha.strftime("%d/%m/%Y") }}</small></h1>
     <a href="{{ url_for('pedidos.nuevo') }}" class="boton-primario">+ Nuevo pedido</a>
 </div>
+
+<form method="GET" class="selector-fecha">
+    <label for="fecha">Ver otro día</label>
+    <input type="date" id="fecha" name="fecha" value="{{ fecha.isoformat() }}">
+    <button type="submit" class="boton-secundario">Ver</button>
+    {% if not es_hoy %}<a href="{{ url_for('pedidos.hoy') }}">Volver a hoy</a>{% endif %}
+</form>
 
 <table class="tabla">
     <thead>
@@ -15,6 +22,7 @@
             <th>Canal</th>
             <th>Registrado</th>
             <th>Estado</th>
+            <th>Acciones</th>
         </tr>
     </thead>
     <tbody>
@@ -35,10 +43,48 @@
             <td>{{ pedido.canal | capitalize }}</td>
             <td>{{ (pedido.fecha_creacion | hora_local).strftime("%H:%M") }}</td>
             <td><span class="estado estado-{{ pedido.estado }}">{{ pedido.estado | capitalize }}</span></td>
+            <td class="acciones">
+                <a href="{{ url_for('pedidos.editar', pedido_id=pedido.id) }}" class="boton-secundario">Editar</a>
+                <form method="POST" action="{{ url_for('pedidos.despachar', pedido_id=pedido.id) }}"
+                      class="form-accion" data-titulo="¿Despachar el pedido #{{ pedido.id }}?"
+                      data-texto="Se marcará como despachado para {{ pedido.cliente_nombre }} y ya no podrá editarse ni cancelarse."
+                      data-boton="Sí, despachar">
+                    <button type="submit" class="boton-primario">Despachar</button>
+                </form>
+                <form method="POST" action="{{ url_for('pedidos.cancelar', pedido_id=pedido.id) }}"
+                      class="form-accion" data-titulo="¿Cancelar el pedido #{{ pedido.id }}?"
+                      data-texto="Se liberarán las existencias comprometidas del pedido de {{ pedido.cliente_nombre }}."
+                      data-boton="Sí, cancelar">
+                    <button type="submit" class="boton-peligro">Cancelar</button>
+                </form>
+            </td>
         </tr>
         {% else %}
-        <tr><td colspan="6">No hay pedidos confirmados para entregar hoy.</td></tr>
+        <tr><td colspan="7">No hay pedidos confirmados para entregar {% if es_hoy %}hoy{% else %}ese día{% endif %}.</td></tr>
         {% endfor %}
     </tbody>
 </table>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Despachar y cancelar no se pueden deshacer: se pide confirmación.
+    // Se usa "text" (no "html") porque el nombre del cliente lo escribe una persona.
+    document.querySelectorAll(".form-accion").forEach(function (formulario) {
+        formulario.addEventListener("submit", function (evento) {
+            evento.preventDefault();
+            Swal.fire({
+                icon: "question",
+                title: formulario.dataset.titulo,
+                text: formulario.dataset.texto,
+                showCancelButton: true,
+                confirmButtonText: formulario.dataset.boton,
+                cancelButtonText: "No, volver",
+                confirmButtonColor: "#e8590c"
+            }).then(function (resultado) {
+                if (resultado.isConfirmed) formulario.submit();
+            });
+        });
+    });
+</script>
 {% endblock %}

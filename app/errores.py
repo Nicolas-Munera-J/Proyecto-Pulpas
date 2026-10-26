@@ -28,3 +28,8 @@ class PedidoPosiblementeDuplicadoException(ErrorDeNegocio):
     def __init__(self, mensaje: str, pedido_existente):
         super().__init__(mensaje)
         self.pedido_existente = pedido_existente
+
+
+class TransicionDePedidoInvalidaException(ErrorDeNegocio):
+    """HU03/HU05/HU06 - Se lanza al intentar editar, despachar o cancelar un
+    pedido que ya no está confirmado (despachado o cancelado)."""

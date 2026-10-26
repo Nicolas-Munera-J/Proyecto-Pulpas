@@ -2,15 +2,25 @@ from datetime import date
 
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
+from sqlalchemy import or_
 
 from app.errores import (
     DatosInvalidosException,
-    InventarioInsuficienteException,
+    ErrorDeNegocio,
     PedidoPosiblementeDuplicadoException,
+    TransicionDePedidoInvalidaException,
 )
-from app.models import CANAL_WHATSAPP, CANALES, Producto
+from app.extensions import db
+from app.models import CANAL_WHATSAPP, CANALES, ESTADO_CONFIRMADO, Pedido, Producto
 from app.pedidos.dtos import ItemPedidoDTO, PedidoDTO
-from app.pedidos.servicios import listar_pedidos_del_dia, registrar_pedido
+from app.pedidos.servicios import (
+    cancelar_pedido,
+    cantidades_del_pedido,
+    despachar_pedido,
+    editar_pedido,
+    listar_pedidos_del_dia,
+    registrar_pedido,
+)
 from app.tiempo import a_hora_negocio, hoy_negocio
 
 pedidos_bp = Blueprint("pedidos", __name__, template_folder="../templates/pedidos")
@@ -70,15 +80,44 @@ def _construir_dto(valores: dict) -> PedidoDTO:
     )
 
 
-def _mostrar_formulario(valores: dict, duplicado=None):
-    productos = Producto.query.filter_by(activo=True).order_by(Producto.nombre).all()
+def _valores_desde_pedido(pedido: Pedido) -> dict:
+    return {
+        "cliente_nombre": pedido.cliente_nombre,
+        "cliente_contacto": pedido.cliente_contacto or "",
+        "canal": pedido.canal,
+        "fecha_entrega": pedido.fecha_entrega.isoformat(),
+        "lineas": [
+            {"producto_id": str(d.producto_id), "cantidad": str(d.cantidad)}
+            for d in pedido.detalles
+        ],
+    }
+
+
+def _mostrar_formulario(valores: dict, duplicado=None, pedido=None):
+    """Formulario compartido por "nuevo pedido" (pedido=None) y "editar"."""
+    consulta = Producto.query
+    reservado = {}
+    fecha_minima = hoy_negocio()
+    if pedido is not None:
+        # En edición, un producto del pedido que luego se desactivó debe seguir
+        # apareciendo, o el formulario no podría guardarse.
+        reservado = cantidades_del_pedido(pedido)
+        consulta = consulta.filter(
+            or_(Producto.activo.is_(True), Producto.id.in_(list(reservado)))
+        )
+        fecha_minima = min(fecha_minima, pedido.fecha_entrega)
+    else:
+        consulta = consulta.filter_by(activo=True)
+
     return render_template(
         "pedidos/nuevo.html",
-        productos=productos,
+        productos=consulta.order_by(Producto.nombre).all(),
         valores=valores,
         canales=CANALES,
-        hoy=hoy_negocio().isoformat(),
+        hoy=fecha_minima.isoformat(),
         duplicado=duplicado,
+        pedido=pedido,
+        reservado=reservado,
     )
 
 
@@ -103,7 +142,7 @@ def nuevo():
             "productos": [f"{d.cantidad} x {d.producto.nombre}" for d in existente.detalles],
         }
         return _mostrar_formulario(valores, duplicado)
-    except (DatosInvalidosException, InventarioInsuficienteException) as error:
+    except ErrorDeNegocio as error:
         flash(str(error), "error")
         return _mostrar_formulario(valores)
 
@@ -114,9 +153,76 @@ def nuevo():
 @pedidos_bp.route("/pedidos/hoy")
 @login_required
 def hoy():
-    """HU01 - Consulta de pedidos del día."""
+    """HU01 - Consulta de pedidos del día. Con ?fecha=AAAA-MM-DD permite ver
+    otro día, para poder editar, despachar o cancelar pedidos futuros."""
+    try:
+        fecha = date.fromisoformat(request.args.get("fecha", ""))
+    except ValueError:
+        fecha = hoy_negocio()
     return render_template(
         "pedidos/hoy.html",
-        pedidos=listar_pedidos_del_dia(),
-        fecha=hoy_negocio(),
+        pedidos=listar_pedidos_del_dia(fecha),
+        fecha=fecha,
+        es_hoy=fecha == hoy_negocio(),
+    )
+
+
+def _volver_a_pedidos(pedido: Pedido):
+    return redirect(url_for("pedidos.hoy", fecha=pedido.fecha_entrega.isoformat()))
+
+
+@pedidos_bp.route("/pedidos/<int:pedido_id>/editar", methods=["GET", "POST"])
+@login_required
+def editar(pedido_id):
+    """HU03 - Edición de un pedido antes de ser despachado."""
+    pedido = db.get_or_404(Pedido, pedido_id)
+
+    if request.method == "GET":
+        if pedido.estado != ESTADO_CONFIRMADO:
+            flash(f"El pedido #{pedido.id} ya está {pedido.estado} y no se puede editar.", "error")
+            return _volver_a_pedidos(pedido)
+        return _mostrar_formulario(_valores_desde_pedido(pedido), pedido=pedido)
+
+    valores = _leer_valores(request.form)
+    try:
+        editar_pedido(pedido_id, _construir_dto(valores))
+    except TransicionDePedidoInvalidaException as error:
+        flash(str(error), "error")
+        return _volver_a_pedidos(pedido)
+    except ErrorDeNegocio as error:
+        flash(str(error), "error")
+        return _mostrar_formulario(valores, pedido=pedido)
+
+    flash(f"Pedido #{pedido_id} actualizado.", "success")
+    return _volver_a_pedidos(pedido)
+
+
+def _ejecutar_accion(pedido_id: int, accion, mensaje_exito: str):
+    """Despachar y cancelar comparten el mismo flujo: buscar, ejecutar la
+    regla de negocio y volver a la lista del día del pedido."""
+    pedido = db.get_or_404(Pedido, pedido_id)
+    try:
+        accion(pedido_id)
+    except ErrorDeNegocio as error:
+        flash(str(error), "error")
+    else:
+        flash(mensaje_exito.format(id=pedido_id, cliente=pedido.cliente_nombre), "success")
+    return _volver_a_pedidos(pedido)
+
+
+@pedidos_bp.route("/pedidos/<int:pedido_id>/despachar", methods=["POST"])
+@login_required
+def despachar(pedido_id):
+    """HU05 - Marcar pedido como despachado."""
+    return _ejecutar_accion(
+        pedido_id, despachar_pedido, "Pedido #{id} de {cliente} despachado."
+    )
+
+
+@pedidos_bp.route("/pedidos/<int:pedido_id>/cancelar", methods=["POST"])
+@login_required
+def cancelar(pedido_id):
+    """HU06 - Cancelación de un pedido (libera el inventario comprometido)."""
+    return _ejecutar_accion(
+        pedido_id, cancelar_pedido, "Pedido #{id} de {cliente} cancelado. Inventario liberado."
     )

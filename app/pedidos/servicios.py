@@ -1,8 +1,8 @@
-"""Lógica de negocio de pedidos: HU02, HU09 y HU01.
+"""Lógica de negocio de pedidos: HU02, HU09, HU01 (Sprint 2) y HU03, HU05, HU06 (Sprint 3).
 
 Cada función hace una sola cosa. En particular verificar_inventario_disponible()
 solo CONSULTA; quien compromete las existencias es registrar_pedido(), a
-través de comprometer_existencias() (sin efectos colaterales ocultos).
+través de comprometer_existencias() del módulo de inventario (sin efectos colaterales ocultos).
 """
 from datetime import timedelta
 from typing import Dict, Iterable, List, Optional
@@ -14,12 +14,20 @@ from app.errores import (
     DatosInvalidosException,
     InventarioInsuficienteException,
     PedidoPosiblementeDuplicadoException,
+    TransicionDePedidoInvalidaException,
 )
 from app.extensions import db
+from app.inventario.servicios import (
+    ajustar_compromiso,
+    comprometer_existencias,
+    consumir_existencia_comprometida,
+    liberar_existencia_comprometida,
+)
 from app.models import (
     CANALES,
     ESTADO_CANCELADO,
     ESTADO_CONFIRMADO,
+    ESTADO_DESPACHADO,
     DetallePedido,
     Pedido,
     Producto,
@@ -39,10 +47,12 @@ LONGITUD_MAXIMA_CONTACTO = 80
 # --------------------------------------------------------------------------
 # Validación y preparación de datos
 # --------------------------------------------------------------------------
-def validar_datos_pedido(pedido: PedidoDTO) -> None:
-    """HU02 - Valida campos obligatorios y cantidades mayores que cero.
+def validar_datos_pedido(pedido: PedidoDTO, fecha_original=None) -> None:
+    """HU02/HU03 - Valida campos obligatorios y cantidades mayores que cero.
 
     Se ejecuta en el servidor: el formulario del navegador no es suficiente.
+    `fecha_original` se usa al editar: si la fecha de entrega no cambió, no se
+    rechaza aunque ya haya pasado (un pedido atrasado sigue siendo editable).
     """
     nombre = (pedido.cliente_nombre or "").strip()
     if not nombre:
@@ -59,7 +69,7 @@ def validar_datos_pedido(pedido: PedidoDTO) -> None:
         raise DatosInvalidosException("El canal del pedido no es válido.")
     if pedido.fecha_entrega is None:
         raise DatosInvalidosException("La fecha de entrega es obligatoria.")
-    if pedido.fecha_entrega < hoy_negocio():
+    if pedido.fecha_entrega != fecha_original and pedido.fecha_entrega < hoy_negocio():
         raise DatosInvalidosException("La fecha de entrega no puede estar en el pasado.")
     if not pedido.items:
         raise DatosInvalidosException("El pedido debe incluir al menos un producto.")
@@ -87,11 +97,15 @@ def _normalizar_nombre(nombre: str) -> str:
 # --------------------------------------------------------------------------
 # Inventario (solo consulta)
 # --------------------------------------------------------------------------
-def verificar_inventario_disponible(cantidades: Dict[int, int]) -> Dict[int, Producto]:
-    """HU02 - Consulta si hay existencia disponible para cada producto pedido.
+def verificar_inventario_disponible(
+    cantidades: Dict[int, int], adicional: bool = False
+) -> Dict[int, Producto]:
+    """HU02/HU03 - Consulta si hay existencia disponible para cada producto.
 
     Solo consulta: no descuenta ni compromete nada. Devuelve los productos
-    por id para que el llamador no tenga que volver a buscarlos.
+    por id para que el llamador no tenga que volver a buscarlos. Con
+    `adicional=True` las cantidades son unidades EXTRA (edición de un pedido)
+    y el mensaje lo dice así.
     """
     productos = {
         p.id: p for p in Producto.query.filter(Producto.id.in_(list(cantidades))).all()
@@ -115,38 +129,17 @@ def verificar_inventario_disponible(cantidades: Dict[int, int]) -> Dict[int, Pro
 
     if faltantes:
         detalle = "; ".join(
-            f"{f['producto']}: pediste {f['solicitada']}, disponible {f['disponible']}"
+            (
+                f"{f['producto']}: necesitas {f['solicitada']} más, disponible {f['disponible']}"
+                if adicional
+                else f"{f['producto']}: pediste {f['solicitada']}, disponible {f['disponible']}"
+            )
             for f in faltantes
         )
         raise InventarioInsuficienteException(
             f"No hay inventario suficiente. {detalle}.", faltantes
         )
     return productos
-
-
-def comprometer_existencias(cantidades: Dict[int, int]) -> None:
-    """HU02/HU04 - Pasa unidades de 'disponible' a 'comprometida'.
-
-    El UPDATE es condicional (solo si todavía hay disponible suficiente), así
-    que dos pedidos simultáneos no pueden comprometer la misma unidad aunque
-    ambos hayan pasado la verificación (R-006, RNF06).
-    """
-    for producto_id, cantidad in cantidades.items():
-        resultado = db.session.execute(
-            update(Producto)
-            .where(
-                Producto.id == producto_id,
-                Producto.existencia_disponible >= cantidad,
-            )
-            .values(
-                existencia_disponible=Producto.existencia_disponible - cantidad,
-                existencia_comprometida=Producto.existencia_comprometida + cantidad,
-            )
-        )
-        if resultado.rowcount == 0:
-            raise InventarioInsuficienteException(
-                "El inventario cambió mientras se registraba el pedido. Intenta de nuevo."
-            )
 
 
 # --------------------------------------------------------------------------
@@ -250,3 +243,137 @@ def listar_pedidos_del_dia(fecha=None) -> List[Pedido]:
         .order_by(Pedido.fecha_creacion)
         .all()
     )
+
+
+# --------------------------------------------------------------------------
+# Ciclo del pedido (sección 6.2): confirmado -> despachado | cancelado
+# --------------------------------------------------------------------------
+def cantidades_del_pedido(pedido: Pedido) -> Dict[int, int]:
+    """Unidades por producto que tiene un pedido."""
+    return agrupar_cantidades_por_producto(
+        ItemPedidoDTO(d.producto_id, d.cantidad) for d in pedido.detalles
+    )
+
+
+def _obtener_pedido_confirmado(pedido_id: int, accion: str) -> Pedido:
+    """Devuelve el pedido solo si sigue confirmado. Un pedido despachado o
+    cancelado no admite más acciones (sección 6.2 del documento)."""
+    pedido = db.session.get(Pedido, pedido_id)
+    if pedido is None:
+        raise DatosInvalidosException("El pedido indicado no existe.")
+    if pedido.estado != ESTADO_CONFIRMADO:
+        raise TransicionDePedidoInvalidaException(
+            f"No se puede {accion} el pedido #{pedido.id}: ya está {pedido.estado}."
+        )
+    return pedido
+
+
+def _cambiar_estado_desde_confirmado(pedido_id: int, nuevo_estado: str, **campos) -> None:
+    """Cambia el estado solo si el pedido SIGUE confirmado en la base de datos.
+
+    El UPDATE condicional evita que dos clics simultáneos (o dos usuarios)
+    despachen o cancelen dos veces el mismo pedido y muevan el inventario
+    por duplicado.
+    """
+    resultado = db.session.execute(
+        update(Pedido)
+        .where(Pedido.id == pedido_id, Pedido.estado == ESTADO_CONFIRMADO)
+        .values(estado=nuevo_estado, **campos)
+    )
+    if resultado.rowcount == 0:
+        raise TransicionDePedidoInvalidaException(
+            f"El pedido #{pedido_id} ya no está confirmado; actualiza la página."
+        )
+
+
+# ---- HU03 - Edición antes del despacho -----------------------------------
+def editar_pedido(pedido_id: int, datos: PedidoDTO) -> Pedido:
+    """HU03 - Modifica un pedido confirmado y aún no despachado.
+
+    El inventario se ajusta por DIFERENCIA entre lo que el pedido ya tiene
+    comprometido y el nuevo total: solo se exige disponibilidad para las
+    unidades adicionales (las que ya estaban reservadas no se cuentan dos
+    veces). Si no alcanza, no cambia nada.
+    """
+    pedido = _obtener_pedido_confirmado(pedido_id, "editar")
+    validar_datos_pedido(datos, fecha_original=pedido.fecha_entrega)
+
+    nuevas = agrupar_cantidades_por_producto(datos.items)
+    actuales = cantidades_del_pedido(pedido)
+    diferencias = {
+        producto_id: nuevas.get(producto_id, 0) - actuales.get(producto_id, 0)
+        for producto_id in set(nuevas) | set(actuales)
+    }
+    diferencias = {p: d for p, d in diferencias.items() if d != 0}
+
+    adicionales = {p: d for p, d in diferencias.items() if d > 0}
+    productos = (
+        verificar_inventario_disponible(adicionales, adicional=True) if adicionales else {}
+    )
+
+    pedido.cliente_nombre = " ".join(datos.cliente_nombre.split())
+    pedido.cliente_contacto = (datos.cliente_contacto or "").strip() or None
+    pedido.canal = datos.canal
+    pedido.fecha_entrega = datos.fecha_entrega
+
+    for detalle in list(pedido.detalles):
+        if detalle.producto_id in nuevas:
+            detalle.cantidad = nuevas[detalle.producto_id]  # conserva su precio original
+        else:
+            pedido.detalles.remove(detalle)
+    for producto_id, cantidad in nuevas.items():
+        if producto_id not in actuales:
+            pedido.detalles.append(
+                DetallePedido(
+                    producto_id=producto_id,
+                    cantidad=cantidad,
+                    precio_unitario=productos[producto_id].precio,
+                )
+            )
+
+    try:
+        ajustar_compromiso(diferencias)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+    return pedido
+
+
+# ---- HU05 - Despacho -------------------------------------------------------
+def despachar_pedido(pedido_id: int) -> Pedido:
+    """HU05 - Pasa un pedido confirmado a despachado y registra fecha y hora.
+
+    Las unidades salen físicamente del negocio, así que dejan de estar
+    comprometidas (la existencia disponible no cambia: ya estaba descontada).
+    """
+    pedido = _obtener_pedido_confirmado(pedido_id, "despachar")
+    cantidades = cantidades_del_pedido(pedido)
+
+    try:
+        _cambiar_estado_desde_confirmado(
+            pedido.id, ESTADO_DESPACHADO, fecha_despacho=ahora_utc()
+        )
+        consumir_existencia_comprometida(cantidades)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+    return pedido
+
+
+# ---- HU06 - Cancelación ----------------------------------------------------
+def cancelar_pedido(pedido_id: int) -> Pedido:
+    """HU06 - Pasa un pedido confirmado a cancelado y libera sus existencias
+    comprometidas para que vuelvan a estar disponibles."""
+    pedido = _obtener_pedido_confirmado(pedido_id, "cancelar")
+    cantidades = cantidades_del_pedido(pedido)
+
+    try:
+        _cambiar_estado_desde_confirmado(pedido.id, ESTADO_CANCELADO)
+        liberar_existencia_comprometida(cantidades)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+    return pedido

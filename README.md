@@ -8,7 +8,7 @@ Sistema web para digitalizar la gestión de pedidos, inventario y ventas de un n
 
 ## Estado del proyecto
 
-Sprint 1 completo (base del sistema, usuarios e inventario) y Sprint 2 completo (registro y consulta de pedidos).
+Sprints 1 a 3 completos: base del sistema, usuarios e inventario (S1); registro y consulta de pedidos (S2); ciclo del pedido e inventario comprometido (S3).
 
 - **HU20** – Inicio de sesión
 - **HU21** – Cierre de sesión
@@ -21,6 +21,13 @@ Sprint 1 completo (base del sistema, usuarios e inventario) y Sprint 2 completo 
 - **HU02** – Registro de pedido con verificación inmediata de inventario (`/pedidos/nuevo`)
 - **HU09** – Alerta de posible pedido duplicado (misma pantalla)
 - **HU01** – Consulta de pedidos del día (`/pedidos/hoy`)
+
+**Sprint 3**
+
+- **HU03** – Edición de un pedido antes de ser despachado (`/pedidos/<id>/editar`)
+- **HU04** – Inventario comprometido sincronizado (`app/inventario/servicios.py`)
+- **HU05** – Marcar pedido como despachado (botón en la vista diaria)
+- **HU06** – Cancelación de un pedido (botón en la vista diaria)
 
 **Historia del taller de integración continua: HU08.** El administrador registra una entrada de inventario (producto, cantidad, observación) y la existencia disponible aumenta. Ruta: `/inventario/entradas` · lógica: `app/inventario/servicios.py` · datos: tablas `productos` y `movimientos_inventario`.
 
@@ -92,6 +99,18 @@ Las pruebas usan una base de datos SQLite en memoria; no tocan `pulpas.db`. Cubr
 | HU09 | Distinto cliente, productos, fuera de ventana o pedido cancelado no es duplicado; si el gestor confirma, se registra |
 | HU01 | Solo se listan pedidos confirmados con entrega hoy (no mañana, cancelados ni despachados); vista y mensaje de lista vacía |
 
+**Pruebas del Sprint 3** (`tests/test_ciclo_pedido.py`):
+
+| Historia | Qué verifican |
+|---|---|
+| HU06 | Cancelar libera lo comprometido (4 comprometidas → 10 disponibles, 0 comprometidas), con uno o varios productos; lo liberado se puede volver a vender |
+| HU06 | No se cancela dos veces ni un pedido ya despachado |
+| HU05 | Despachar registra fecha y hora y descuenta lo comprometido; no se despacha dos veces ni un cancelado; sale de los pedidos del día |
+| HU03 | Aumentar/reducir cantidad ajusta solo la diferencia; quitar y agregar productos; sin inventario para el nuevo total no cambia nada (todo o nada) |
+| HU03 | No se edita un pedido despachado o cancelado; validaciones en el servidor; conserva precios; pedido atrasado editable sin cambiar la fecha |
+| HU04 | Tras cualquier secuencia de operaciones, lo comprometido en productos = suma de pedidos confirmados (`verificar_coherencia_inventario`); nunca quedan existencias negativas |
+| Interfaz | Editar, despachar y cancelar por HTTP, 404 en pedidos inexistentes, redirección al login sin sesión, consulta de otra fecha |
+
 ## Pipeline de integración continua
 
 El archivo `.github/workflows/ci.yml` se ejecuta en cada `push` y `pull request`. Tiene dos trabajos:
@@ -143,6 +162,15 @@ Estado actual: ver la pestaña **Actions** del repositorio o la insignia de arri
 - **Datos del cliente mínimos** (nombre y contacto opcional) por la Ley 1581 de 2012; no hay tabla de clientes.
 - `precio_unitario` y `fecha_despacho` se guardan desde ya para HU10 y HU05, así no hay que alterar tablas después.
 
+## Decisiones del Sprint 3
+
+- **Despachar descuenta lo comprometido.** El documento solo dice que HU05 cambia el estado y registra fecha y hora, pero la sección 6.3 define existencia física = disponible + comprometida. Si al despachar no se descontara, la fruta que ya salió seguiría contando como existencia. Por eso despachar baja `comprometida` (y `disponible` no cambia: ya estaba descontada al confirmar).
+- **Editar verifica solo las unidades adicionales.** Un pedido de 4 que pasa a 9 necesita 5 más disponibles, no 9. El ajuste es por diferencia y todo o nada.
+- **Un pedido despachado o cancelado no se edita, despacha ni cancela.** Los cambios de estado usan un UPDATE condicional (`WHERE estado = 'confirmado'`), así que dos clics simultáneos no mueven el inventario dos veces.
+- **Coherencia verificable.** `verificar_coherencia_inventario()` compara lo comprometido con la suma de los pedidos confirmados; las pruebas la ejecutan después de cada escenario (mitigación de R-006).
+- **La vista diaria acepta `?fecha=AAAA-MM-DD`** para poder editar, despachar o cancelar pedidos de otros días; el historial completo es HU07 (Sprint 5).
+- **Sin confirmación de pago ni totales todavía:** la forma de pago al despachar (HU11) llega en el Sprint 4.
+
 ## Trabajo colaborativo
 
 Una rama por historia (`feature/hu08-entradas-inventario`), integración a `main` mediante pull request revisado y aprobado por otro integrante, y pipeline en verde antes de fusionar.
@@ -153,5 +181,6 @@ Se utilizó Claude (Anthropic) como herramienta de apoyo durante el proyecto: es
 
 ## Pendiente para próximos sprints
 
-- Sprint 3: edición, despacho, cancelación e inventario comprometido (HU03, HU04, HU05, HU06).
+- Sprint 4: totales automáticos, forma de pago y reportes (HU10, HU11, HU17, HU18). HU11 se registra al despachar: habrá que ampliar `despachar_pedido`.
+- Protección CSRF en los formularios que modifican datos (despachar, cancelar, editar, registrar): hoy ninguno la tiene. Va en el chequeo de código seguro.
 - Validar con el cliente la heurística de duplicados de HU09 (ventana de 30 minutos).

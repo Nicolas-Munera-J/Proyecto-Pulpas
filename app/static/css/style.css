@@ -121,3 +121,20 @@ form input, form select {
     .resumen-tarjetas { flex-direction: column; }
     .tabla { display: block; overflow-x: auto; }
 }
+
+/* ---- Sprint 3: ciclo del pedido ---- */
+.acciones { white-space: nowrap; }
+.acciones form { display: inline; }
+.acciones .boton-primario, .acciones .boton-secundario, .acciones .boton-peligro {
+    padding: 6px 10px; font-size: 0.85rem; margin-left: 4px; text-decoration: none; display: inline-block;
+}
+.boton-peligro {
+    background: white; color: #c92a2a; border: 1px solid #c92a2a;
+    border-radius: 6px; font-weight: 600; cursor: pointer;
+}
+.boton-peligro:hover { background: #ffe3e3; }
+.selector-fecha { display: flex; align-items: center; gap: 10px; margin: 8px 0 16px; flex-wrap: wrap; }
+.selector-fecha label { margin: 0; }
+.selector-fecha input { width: auto; margin: 0; }
+.ayuda { color: #666; font-size: 0.9rem; background: #fff8f0; padding: 8px 12px; border-radius: 6px; }
+.enlace-cancelar { margin-left: 12px; color: #777; }
